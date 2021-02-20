@@ -1,71 +1,65 @@
 extern crate rand;
 extern crate csv;
 extern crate serde;
+extern crate clap;
+
+mod cliente;
+mod logger;
 
 use std::{
     sync::Arc,
     sync::Mutex,
     sync::mpsc::channel,
-    thread
+    thread,
+    fs::File,
 };
 
-use serde::{Serialize, Serializer};
+use clap::{Arg, App, SubCommand};
 
-enum TipoTransaccion {
-    CashIn,
-    CashOut
-}
+use logger::{Logger, TaggedLogger};
+use cliente::iniciar_hilos_clientes;
 
-impl Serialize for TipoTransaccion {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(match self {
-            TipoTransaccion::CashIn => "cash_in",
-            TipoTransaccion::CashOut => "cash_out"
-        })
+fn main()  {
+    if let Err(e) = real_main() {
+        println!("ERROR: {}", e);
     }
 }
 
-#[derive(Serialize)]
-struct Transaccion {
-    #[serde(rename = "Transaction")]
-    id_transaccion: u32,
-    #[serde(rename = "User_id")]
-    id_cliente: u32,
-    #[serde(rename = "Timestamp")]
-    timestamp: u32,
-    #[serde(rename = "Type")]
-    tipo: TipoTransaccion,
-    #[serde(rename = "Amount")]
-    monto: f32
-}
 
-fn generar_transacciones(n_clientes: u32, n_transacciones: u32) {
-    use rand::prelude::*;
-    let mut rng = rand::thread_rng();
-    let mut file = csv::Writer::from_path("transacciones.csv").unwrap();
+fn real_main() -> Result<(), String> {
 
-    for id_transaccion in 1..(n_transacciones+1) {
-        let id_cliente: u32 = rng.gen_range(0..n_clientes);
-        let timestamp: u32 = rng.gen();
-        let tipo = if rng.gen() {
-            TipoTransaccion::CashIn
-        } else {
-            TipoTransaccion::CashOut
-        };
-        let monto = rng.gen::<u32>() as f32 / 1000.0;
 
-        file.serialize(Transaccion {
-            id_transaccion, id_cliente, timestamp, tipo, monto
-        }).unwrap();
+    let yaml = clap::load_yaml!("cli.yml");
+    let argumentos = App::from_yaml(yaml).get_matches();
+
+
+    let logger = Arc::new(if argumentos.is_present("Debug") {
+        Logger::new_to_file("debug.txt").expect("No se pudo crear el archivo de log.")
+    } else {
+        Logger::new_to_stdout()
+    });
+
+    let log = TaggedLogger::new("ADMIN", logger.clone());
+    log.write(&format!("Iniciando simulación con: {}", "onda"));//args.as_str()));
+
+    let numero_de_clientes = argumentos.value_of("Clientes").unwrap_or("10").parse::<u32>().unwrap();
+
+    let archivo = Arc::new(Mutex::new(csv::Writer::from_path("transacciones.csv").unwrap()));
+    let archivo_ = archivo.clone();
+
+    let clientes_threads = iniciar_hilos_clientes(numero_de_clientes, archivo_); 
+
+    for cliente in clientes_threads {
+        cliente.join().expect("no se pudo joinear hilo de cliente");
     }
-    file.flush().unwrap();
-}
 
-fn main() {
-    generar_transacciones(10, 1000);
+    let mut file = archivo.lock().expect("log mutex poisoned");
+    file.flush().expect("Error al flushear el log");
+
+    logger.close();
+    
+    Ok(())
+
     /*let (tx, rx) = channel();
 
     let rx_2 = Arc::new(Mutex::new(rx));

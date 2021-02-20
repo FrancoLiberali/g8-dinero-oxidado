@@ -1,0 +1,23 @@
+name: Dinero oxidado
+version: "1.0"
+about: Proyecto Rust 2
+args:
+    - Workers procesadores:
+        short: p
+        help: Numeros de workers procesadores
+        takes_value: true
+    - Workers cashin:
+        short: i
+        help: Numeros de workers cashin
+        takes_value: true
+    - Workers cashout:
+        short: o
+        help: Numeros de workers cashout
+        takes_value: true   
+    - Clientes:
+        short: c
+        help: Numeros de clientes
+        takes_value: true
+    - Debug:
+        short: d
+        help: Modo debug
