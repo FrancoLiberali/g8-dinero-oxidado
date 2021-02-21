@@ -6,6 +6,9 @@ extern crate clap;
 mod cliente;
 mod procesador;
 mod logger;
+//mod provedor_externo;
+//mod worker;
+//mod AI;
 
 use std::{
     sync::Arc,
@@ -20,6 +23,10 @@ use clap::App;
 use logger::{Logger, TaggedLogger};
 use cliente::iniciar_hilos_clientes;
 use procesador::Procesador;
+
+//use provedor_externo::ProvedorExterno;
+//use worker::Worker;
+
 
 fn main()  {
     if let Err(e) = real_main() {

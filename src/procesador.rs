@@ -13,7 +13,7 @@ pub struct Transaccion {
     User_id: u32,
     Timestamp: u32,
     Type: String,
-    Amount: f32
+    Amount: f32,
 }
 
 pub struct Procesador {

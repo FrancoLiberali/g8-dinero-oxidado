@@ -1,11 +1,20 @@
-use std::{sync::Arc, sync::atomic::AtomicBool, sync::atomic::Ordering, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::AtomicBool,
+        atomic::Ordering,
+        mpsc::Sender,
+    },
+    thread::JoinHandle,
+    time::Duration,
+    };
 
 pub fn iniciar_hilo_provedor(clientes: Sender<u32>) -> JoinHandle<()> {
 
-    let provedor_externo = ProvedorExterno::new(archivo_, n, transaccion_, 64);
+    let provedor_externo = ProvedorExterno::new(clientes);
 
     std::thread::spawn(move || {
-        cliente.operar();
+        provedor_externo.crear_hashes();
     })
 }
 
@@ -29,7 +38,7 @@ impl ProvedorExterno {
 
             //crearHash
             let hash: u32 = 2; // crear funcion de hashing copada
-            clientes.send(hash);
+            self.clientes.send(hash).unwrap();
 
         }
     }
