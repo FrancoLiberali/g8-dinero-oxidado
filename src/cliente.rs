@@ -14,7 +14,7 @@ use csv::Writer;
 use serde::{Serialize, Serializer};
 
 const PROBABILIDAD_DE_CHECK_IN: f64 = 0.5; // 50%
-const CANTIDAD_DE_OPERACIONES: u32 = 100;
+const CANTIDAD_DE_OPERACIONES: u32 = 10;
 
 enum TipoTransaccion {
     CashIn,

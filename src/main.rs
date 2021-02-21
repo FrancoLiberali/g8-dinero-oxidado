@@ -4,6 +4,7 @@ extern crate serde;
 extern crate clap;
 
 mod cliente;
+mod procesador;
 mod logger;
 
 use std::{
@@ -14,10 +15,11 @@ use std::{
     fs::File,
 };
 
-use clap::{Arg, App, SubCommand};
+use clap::App;
 
 use logger::{Logger, TaggedLogger};
 use cliente::iniciar_hilos_clientes;
+use procesador::Procesador;
 
 fn main()  {
     if let Err(e) = real_main() {
@@ -28,11 +30,11 @@ fn main()  {
 
 fn real_main() -> Result<(), String> {
 
-
+    // Parsea de argumentos 
     let yaml = clap::load_yaml!("cli.yml");
     let argumentos = App::from_yaml(yaml).get_matches();
 
-
+    // Inicializo el logger
     let logger = Arc::new(if argumentos.is_present("Debug") {
         Logger::new_to_file("debug.txt").expect("No se pudo crear el archivo de log.")
     } else {
@@ -42,11 +44,12 @@ fn real_main() -> Result<(), String> {
     let log = TaggedLogger::new("ADMIN", logger.clone());
     log.write(&format!("Iniciando simulación con: {}", "onda"));//args.as_str()));
 
-    let numero_de_clientes = argumentos.value_of("Clientes").unwrap_or("10").parse::<u32>().unwrap();
-
+    // Abro archivo de transacciones
     let archivo = Arc::new(Mutex::new(csv::Writer::from_path("transacciones.csv").unwrap()));
+    
+    // Simulo transacciones de un dia 
     let archivo_ = archivo.clone();
-
+    let numero_de_clientes = argumentos.value_of("Clientes").unwrap_or("10").parse::<u32>().unwrap();
     let clientes_threads = iniciar_hilos_clientes(numero_de_clientes, archivo_); 
 
     for cliente in clientes_threads {
@@ -56,6 +59,22 @@ fn real_main() -> Result<(), String> {
     let mut file = archivo.lock().expect("log mutex poisoned");
     file.flush().expect("Error al flushear el log");
 
+    let (tx, rx) = channel();
+    let (tx2, rx2) = channel();
+
+    let mut proc = Procesador::new(String::from("transacciones.csv"), tx, tx2);
+    proc.procesar();
+
+    println!("------------------------------Operaciones Cashin------------------------------");
+    for cashin in rx{
+        println!("{:?}", cashin);
+    }
+
+    println!("------------------------------Operaciones Cashout------------------------------");
+    for cashout in rx2{
+        println!("{:?}", cashout);
+    }
+    
     logger.close();
     
     Ok(())
