@@ -34,8 +34,6 @@ impl Procesador {
 
    pub fn procesar(&mut self){
     for result in self.file.deserialize() {
-        // The iterator yields Result<StringRecord, Error>, so we check the
-        // error here.
         let record: Transaccion = result.unwrap();
         //println!("{:?}", record);
         if record.Type == "cash_in"{

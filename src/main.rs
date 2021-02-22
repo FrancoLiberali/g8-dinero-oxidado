@@ -6,8 +6,8 @@ extern crate clap;
 mod cliente;
 mod procesador;
 mod logger;
-//mod provedor_externo;
-//mod worker;
+mod provedor_externo;
+mod worker;
 //mod AI;
 
 use std::{
@@ -16,7 +16,9 @@ use std::{
     sync::mpsc::channel,
     thread,
     fs::File,
+    thread::JoinHandle, 
 };
+use csv::Writer;
 
 use clap::App;
 
@@ -24,9 +26,8 @@ use logger::{Logger, TaggedLogger};
 use cliente::iniciar_hilos_clientes;
 use procesador::Procesador;
 
-//use provedor_externo::ProvedorExterno;
-//use worker::Worker;
-
+use provedor_externo::ProvedorExterno;
+use worker::iniciar_hilos_workers;
 
 fn main()  {
     if let Err(e) = real_main() {
@@ -57,6 +58,7 @@ fn real_main() -> Result<(), String> {
     // Simulo transacciones de un dia 
     let archivo_ = archivo.clone();
     let numero_de_clientes = argumentos.value_of("Clientes").unwrap_or("10").parse::<u32>().unwrap();
+    
     let clientes_threads = iniciar_hilos_clientes(numero_de_clientes, archivo_); 
 
     for cliente in clientes_threads {
@@ -65,58 +67,72 @@ fn real_main() -> Result<(), String> {
 
     let mut file = archivo.lock().expect("log mutex poisoned");
     file.flush().expect("Error al flushear el log");
+ 
+    //------------------------------------------Procesamiento del archivo----------------------------
 
-    let (tx, rx) = channel();
-    let (tx2, rx2) = channel();
+    // inicializo canales 
+    let (tx_in, rx_in) = channel();
+    let (tx_out, rx_out) = channel();
+    let (tx_hash, rx_hash) = channel();
+    let (tx_auth, rx_auth) = channel();
 
-    let mut proc = Procesador::new(String::from("transacciones.csv"), tx, tx2);
-    proc.procesar();
+    // Proceso de las entradas del archivo 
+    let mut proc = Procesador::new(String::from("transacciones.csv"), tx_in, tx_out);
 
-    println!("------------------------------Operaciones Cashin------------------------------");
-    for cashin in rx{
-        println!("{:?}", cashin);
+    let t_procesador = thread::spawn(move || {
+        proc.procesar();
+    });
+
+    //inicializo el provedor externo    
+    let tx_has_mut = Arc::new(Mutex::new(tx_hash)); // para que no llore el compilador 
+
+    let provedor_externo = Arc::new(ProvedorExterno::new(tx_has_mut.clone()));
+    let provedor_ext_ref = provedor_externo.clone();
+    let t_provedor = std::thread::spawn(move || {
+        provedor_ext_ref.crear_hashes();
+    });
+
+    // inicializo workers cashin y cashout
+    let prov_hash = Arc::new(Mutex::new(rx_hash));
+    let prov_hash_1 = prov_hash.clone();
+    let prov_hash_2 = prov_hash.clone();
+
+    let cash_in = Arc::new(Mutex::new(rx_in));
+    let rx_cashin = cash_in.clone();
+
+    let cash_out = Arc::new(Mutex::new(rx_out));
+    let rx_cashout = cash_out.clone();
+
+    let tx_auth_1 = tx_auth.clone();
+    let tx_auth_2 = tx_auth.clone();
+    let t_workers_in = iniciar_hilos_workers(3, prov_hash_1, rx_cashin, tx_auth_1);
+    let t_workers_out = iniciar_hilos_workers(3, prov_hash_2, rx_cashout, tx_auth_2);
+
+    // No se porque se queda trabajo en el for, se tendrian que cerrar los tx_auth
+    // y seguir pero se queda ahi. Lo demas parece que funca
+    println!("------------------------Operaciones Auth------------------------------");
+    for transaccion in rx_auth{
+        println!("{:?}", transaccion);
     }
 
-    println!("------------------------------Operaciones Cashout------------------------------");
-    for cashout in rx2{
-        println!("{:?}", cashout);
+    println!("------------------------Operaciones termine------------------------------");
+
+    for worker_in in t_workers_in {
+        //worker_in.cerrar();
+        worker_in.join().expect("no se pudo joinear hilo in");
     }
+
+    for worker_out in t_workers_out {
+        //worker_out.cerrar();
+        worker_out.join().expect("no se pudo joinear hilo out");
+    }
+
+    t_procesador.join().unwrap();
+
+    provedor_externo.cerrar();
+    t_provedor.join().unwrap();
     
     logger.close();
     
     Ok(())
-
-    /*let (tx, rx) = channel();
-
-    let rx_2 = Arc::new(Mutex::new(rx));
-    let rx_3 = rx_2.clone();
-    let t1 = thread::spawn(move || {
-        loop {
-            println!("t1 esperando mutex");
-            let rx_t1 = rx_2.lock().expect("poison");
-            println!("t1 agarré mutex");
-            let rcv = rx_t1.recv().unwrap();
-            println!("t1 recibió: {}", rcv);
-            if rcv > 90000 { println!("t1 bai"); break; }
-        }
-    });
-
-    let t2 = thread::spawn(move || {
-        loop {
-            println!("t2 esperando mutex");
-            let rx_t2 = rx_3.lock().expect("poison");
-            println!("t2 agarré mutex");
-            let rcv = rx_t2.recv().unwrap();
-            println!("t2 recibió: {}", rcv);
-            if rcv > 90000 { println!("t2 bai"); break; }
-        }
-    });
-
-    for i in 0..100000 {
-        tx.send(i).unwrap();
-        // thread::sleep(Duration::from_millis(10));
-    }
-
-    t1.join().unwrap();
-    t2.join().unwrap();*/
 }

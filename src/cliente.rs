@@ -91,7 +91,7 @@ impl Cliente {
         let mut rng = self.rng.lock().expect("posioned rng");
         let transacciones: u32 = rng.gen_range(1..CANTIDAD_DE_OPERACIONES);
 
-        for n in 1..transacciones {
+        for _n in 1..transacciones {
 
             let es_check_in: f64 = rng.gen();
 

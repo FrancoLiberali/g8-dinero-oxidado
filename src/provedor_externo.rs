@@ -4,28 +4,19 @@ use std::{
         atomic::AtomicBool,
         atomic::Ordering,
         mpsc::Sender,
+        Mutex,
     },
-    thread::JoinHandle,
     time::Duration,
     };
 
-pub fn iniciar_hilo_provedor(clientes: Sender<u32>) -> JoinHandle<()> {
-
-    let provedor_externo = ProvedorExterno::new(clientes);
-
-    std::thread::spawn(move || {
-        provedor_externo.crear_hashes();
-    })
-}
-
 pub struct ProvedorExterno {
-    clientes: Sender<u32>,
+    clientes: Arc<Mutex<Sender<u32>>>,
     apagado: AtomicBool,
 }
 
 impl ProvedorExterno {
 
-    pub fn new(clientes: Sender<u32>) -> Self {
+    pub fn new(clientes: Arc<Mutex<Sender<u32>>>) -> Self {
         Self { 
             clientes,
             apagado: AtomicBool::new(false),
@@ -37,8 +28,9 @@ impl ProvedorExterno {
         while !self.apagado.load(Ordering::SeqCst) {
 
             //crearHash
+            let clientes = self.clientes.lock().unwrap();
             let hash: u32 = 2; // crear funcion de hashing copada
-            self.clientes.send(hash).unwrap();
+            clientes.send(hash).unwrap();
 
         }
     }

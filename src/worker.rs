@@ -8,11 +8,13 @@ use std::{
             Ordering
         },
     },
+    thread::JoinHandle, 
     fs::File,
 };
 
 use crate::procesador::Transaccion;
 
+#[derive(Debug)]
 pub struct TransaccionAuth {
     transaccion: Transaccion,
     hash_auth: u32,
@@ -25,6 +27,25 @@ impl TransaccionAuth{
             hash_auth,
         }
     }
+}
+
+pub fn iniciar_hilos_workers(n_workers: u32, 
+                             provedor_ext: Arc<Mutex<Receiver<u32>>>,
+                             transacciones: Arc<Mutex<Receiver<Transaccion>>>,
+                             autorizador: Sender<TransaccionAuth>)
+                             -> Vec<JoinHandle<()>> {
+    let mut handles = vec![];
+    
+    for _n in 0..n_workers {
+        let mut worker = Worker::new((&provedor_ext).clone(),
+                                 (&transacciones).clone(),
+                                 (&autorizador).clone());
+
+        handles.push(std::thread::spawn(move || {
+            worker.procesar();
+        }));
+    }
+    handles
 }
 
 pub struct Worker {
@@ -51,8 +72,14 @@ impl Worker {
 
             let prov_transaccion = self.transacciones.lock().unwrap();
             let provedor = self.provedor_ext.lock().unwrap();
-        
-            let transaccion = prov_transaccion.recv().unwrap();
+            
+            let transaccion = match prov_transaccion.recv(){
+                Ok(tran) => tran,
+                Err(_) => {
+                    println!("termino");
+                    break;
+                }, //se cerro el tx
+            };
             let hash = provedor.recv().unwrap();
 
             //agregar hash
@@ -63,6 +90,7 @@ impl Worker {
             drop(provedor);
             drop(prov_transaccion);
         }
+        println!("me voy");
     }
     pub fn cerrar(&self) {
         self.apagado.store(true, Ordering::SeqCst);

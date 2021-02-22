@@ -34,7 +34,13 @@ impl AI {
             let transacciones = self.transacciones_auth.lock().unwrap();
             let mut rng = self.rng.lock().expect("posioned rng");
 
-            let transaccion_auth = transacciones.recv().unwrap();
+            let transaccion_auth = match transacciones.recv(){
+                Ok(tran) => tran,
+                Err(_) => {
+                    println!("termino AI");
+                    break;
+                }, //se cerro el tx
+            };
             
             let valida: f64 = rng.gen();
 
