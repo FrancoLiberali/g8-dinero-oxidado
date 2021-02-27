@@ -8,6 +8,8 @@ mod procesador;
 mod logger;
 mod provedor_externo;
 mod worker;
+mod transaccion;
+mod simulacion;
 //mod AI;
 
 use std::{
@@ -15,15 +17,12 @@ use std::{
     sync::Mutex,
     sync::mpsc::channel,
     thread,
-    fs::File,
-    thread::JoinHandle, 
 };
-use csv::Writer;
 
 use clap::App;
 
 use logger::{Logger, TaggedLogger};
-use cliente::iniciar_hilos_clientes;
+use simulacion::simular_transacciones;
 use procesador::Procesador;
 
 use provedor_externo::ProvedorExterno;
@@ -37,7 +36,6 @@ fn main()  {
 
 
 fn real_main() -> Result<(), String> {
-
     // Parsea de argumentos 
     let yaml = clap::load_yaml!("cli.yml");
     let argumentos = App::from_yaml(yaml).get_matches();
@@ -49,25 +47,12 @@ fn real_main() -> Result<(), String> {
         Logger::new_to_stdout()
     });
 
-    let log = TaggedLogger::new("ADMIN", logger.clone());
-    log.write(&format!("Iniciando simulación con: {}", "onda"));//args.as_str()));
-
-    // Abro archivo de transacciones
-    let archivo = Arc::new(Mutex::new(csv::Writer::from_path("transacciones.csv").unwrap()));
-    
-    // Simulo transacciones de un dia 
-    let archivo_ = archivo.clone();
-    let numero_de_clientes = argumentos.value_of("Clientes").unwrap_or("10").parse::<u32>().unwrap();
-    
-    let clientes_threads = iniciar_hilos_clientes(numero_de_clientes, archivo_); 
-
-    for cliente in clientes_threads {
-        cliente.join().expect("no se pudo joinear hilo de cliente");
-    }
-
-    let mut file = archivo.lock().expect("log mutex poisoned");
-    file.flush().expect("Error al flushear el log");
- 
+    simular_transacciones(
+        TaggedLogger::new("SIMULACION", logger.clone()),
+        "transacciones.csv", 
+        argumentos.value_of("Clientes").unwrap_or("10").parse::<u32>().unwrap(), 
+        64
+    ).expect("Error al generar el archivo de transacciones");
     //------------------------------------------Procesamiento del archivo----------------------------
 
     // inicializo canales 
