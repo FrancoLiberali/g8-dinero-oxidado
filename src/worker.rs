@@ -1,84 +1,118 @@
 use std::{
     sync::{
+        mpsc,
         mpsc::{Sender, Receiver},
-        Arc,
-        Mutex,
-        atomic::{
-            AtomicBool,
-            Ordering
-        },
+        Arc, Mutex,
     },
+    thread,
     thread::JoinHandle, 
 };
 
-use crate::transaccion::{Transaccion, TransaccionAutorizada};
+use crate::{
+    logger::{Logger, TaggedLogger},
+    transaccion::{HashAutorizacion, Transaccion, TransaccionAutorizada}
+};
 
-pub fn iniciar_hilos_workers(n_workers: u32, 
-                             provedor_ext: Arc<Mutex<Receiver<u32>>>,
-                             transacciones: Arc<Mutex<Receiver<Transaccion>>>,
-                             autorizador: Sender<TransaccionAutorizada>)
-                             -> Vec<JoinHandle<()>> {
-    let mut handles = vec![];
-    
-    for _n in 0..n_workers {
-        let mut worker = Worker::new((&provedor_ext).clone(),
-                                 (&transacciones).clone(),
-                                 (&autorizador).clone());
 
-        handles.push(std::thread::spawn(move || {
-            worker.procesar();
-        }));
+/// Inicia n_workers para cashout y n_workers para cashin
+/// (en total habrá 2*n_workers hilos corriendo).
+pub fn iniciar_workers(n_workers: u32, 
+                       proveedores_transaccion: &[Arc<Mutex<Receiver<Transaccion>>>],
+                       proveedor_autorizacion: Arc<Mutex<Receiver<HashAutorizacion>>>,
+                       logger: Arc<Logger>)
+    -> (Receiver<TransaccionAutorizada>, Vec<JoinHandle<()>>)
+{
+    let (autorizador, rx) = mpsc::channel();
+    let mut handles_worker = vec![];
+    let n_sources = proveedores_transaccion.len() as u32;
+    for worker_id in 0..n_workers {
+        let mut id = n_sources * worker_id;
+        for src in proveedores_transaccion {
+            handles_worker.push(
+                Worker::iniciar(
+                    TaggedLogger::new(&format!("WORKER {}", id), logger.clone()),
+                    proveedor_autorizacion.clone(),
+                    src.clone(),
+                    autorizador.clone()
+                )
+            );
+
+            id += 1;
+        }
     }
-    handles
+
+    (rx, handles_worker)
 }
 
 pub struct Worker {
-    provedor_ext: Arc<Mutex<Receiver<u32>>>,
-    transacciones: Arc<Mutex<Receiver<Transaccion>>>,
+    log: TaggedLogger,
+    proveedor_autorizacion: Arc<Mutex<Receiver<HashAutorizacion>>>,
+    proveedor_transacciones: Arc<Mutex<Receiver<Transaccion>>>,
     autorizador: Sender<TransaccionAutorizada>,
-    apagado: AtomicBool,
 }
 
 impl Worker {
-
-    pub fn new(provedor_ext: Arc<Mutex<Receiver<u32>>>, 
-               transacciones: Arc<Mutex<Receiver<Transaccion>>>, 
-               autorizador: Sender<TransaccionAutorizada>) -> Self {
-       Self { 
-            provedor_ext,
-            transacciones,
-            autorizador,
-            apagado: AtomicBool::new(false),
-       }
-   }
-
-    pub fn procesar(&mut self){
-
-        while !self.apagado.load(Ordering::SeqCst) {
-
-            let prov_transaccion = self.transacciones.lock().unwrap();
-            let provedor = self.provedor_ext.lock().unwrap();
-            
-            let transaccion = match prov_transaccion.recv(){
-                Ok(tran) => tran,
-                Err(_) => {
-                    println!("termino");
-                    break;
-                }, //se cerro el tx
+    pub fn iniciar(log: TaggedLogger,
+                   proveedor_autorizacion: Arc<Mutex<Receiver<HashAutorizacion>>>,
+                   proveedor_transacciones: Arc<Mutex<Receiver<Transaccion>>>,
+                   autorizador: Sender<TransaccionAutorizada>)
+        -> JoinHandle<()>
+    {
+        thread::spawn(move || {
+            let worker = Self {
+                log,
+                proveedor_autorizacion,
+                proveedor_transacciones,
+                autorizador
             };
-            let hash = provedor.recv().unwrap();
 
-            //agregar hash
-            let transaccion_autorizada = TransaccionAutorizada::new(transaccion, hash);
-            //enviar hash
-            self.autorizador.send(transaccion_autorizada).unwrap();
-
-            drop(provedor);
-            drop(prov_transaccion);
-        }
-        println!("me voy");
+            worker.procesar();
+        })
     }
-    pub fn cerrar(&self) {
-        self.apagado.store(true, Ordering::SeqCst);
+
+    fn obtener_transaccion(&self) -> Option<Transaccion> {
+        let proveedor = self
+            .proveedor_transacciones
+            .lock()
+            .expect("Mutex de transacciones poisoned");
+        
+        match proveedor.recv() {
+            Ok(t) => Some(t),
+            Err(_) => None
+        }
+    }
+
+    fn obtener_hash(&self) -> Result<HashAutorizacion, mpsc::RecvError> {
+        let proveedor = self
+            .proveedor_autorizacion
+            .lock()
+            .expect("Mutex de hashes poisoned");
+        
+        proveedor.recv()
+    }
+
+    fn enviar_transaccion_autorizada(&self, transaccion_autorizada: TransaccionAutorizada) {
+        self.autorizador.send(transaccion_autorizada).expect("Channel cerrado");
+    }
+
+    fn procesar(&self) {
+        self.log.write("Worker iniciado");
+        while let Some(transaccion) = self.obtener_transaccion() {
+            let hash = match self.obtener_hash() {
+                Ok(h) => h,
+                Err(_) => {
+                    println!("Se cerró el hasheador");
+                    break;
+                }
+            };
+
+            let transaccion_autorizada = TransaccionAutorizada::new(
+                transaccion, 
+                hash
+            );
+
+            self.enviar_transaccion_autorizada(transaccion_autorizada);
+        }
+        self.log.write("Worker terminado");
     }
 }

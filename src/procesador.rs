@@ -1,6 +1,9 @@
+
 use std::{
-    sync::mpsc::Sender,
+    sync::mpsc,
+    sync::mpsc::{Sender, Receiver},
     fs::File,
+    thread, thread::JoinHandle,
 };
 use csv::Reader;
 use crate::transaccion::{Transaccion, TipoTransaccion};
@@ -12,12 +15,22 @@ pub struct Procesador {
 }
 
 impl Procesador {
-    pub fn new(file: String, cashin: Sender<Transaccion>, cashout: Sender<Transaccion>) -> Self {
-       Self { 
-           file: csv::Reader::from_path(file).unwrap(),
-           cashin,
-           cashout,
-       }
+   pub fn iniciar(file: &str) -> Result<(Receiver<Transaccion>, Receiver<Transaccion>, JoinHandle<()>), csv::Error> {
+        let (tx_cashin, rx_cashin) = mpsc::channel();
+        let (tx_cashout, rx_cashout) = mpsc::channel();
+
+        let reader = csv::Reader::from_path(file)?;
+        let handle = thread::spawn(move || {
+            let mut procesador = Self {
+                file: reader,
+                cashin: tx_cashin,
+                cashout: tx_cashout
+            };
+
+            procesador.procesar();
+        });
+
+        Ok((rx_cashin, rx_cashout, handle))
    }
 
     pub fn procesar(&mut self) {

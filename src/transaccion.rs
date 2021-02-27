@@ -22,12 +22,12 @@ pub struct Transaccion {
     pub monto: f32
 }
 
-type HashAutorizacion = u32;
+pub type HashAutorizacion = u32;
 
 #[derive(Debug)]
 pub struct TransaccionAutorizada {
-    transaccion: Transaccion,
-    autorizacion: HashAutorizacion
+    pub transaccion: Transaccion,
+    pub autorizacion: HashAutorizacion
 }
 
 impl TransaccionAutorizada {

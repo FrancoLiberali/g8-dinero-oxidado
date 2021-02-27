@@ -6,27 +6,21 @@ extern crate clap;
 mod cliente;
 mod procesador;
 mod logger;
-mod provedor_externo;
+mod proveedor_externo;
 mod worker;
 mod transaccion;
 mod simulacion;
 //mod AI;
 
-use std::{
-    sync::Arc,
-    sync::Mutex,
-    sync::mpsc::channel,
-    thread,
-};
+use std::sync::{Arc, Mutex};
 
 use clap::App;
 
 use logger::{Logger, TaggedLogger};
 use simulacion::simular_transacciones;
 use procesador::Procesador;
-
-use provedor_externo::ProvedorExterno;
-use worker::iniciar_hilos_workers;
+use proveedor_externo::ProveedorExterno;
+use worker::iniciar_workers;
 
 fn main()  {
     if let Err(e) = real_main() {
@@ -34,9 +28,8 @@ fn main()  {
     }
 }
 
-
 fn real_main() -> Result<(), String> {
-    // Parsea de argumentos 
+    // Parser de argumentos 
     let yaml = clap::load_yaml!("cli.yml");
     let argumentos = App::from_yaml(yaml).get_matches();
 
@@ -47,75 +40,64 @@ fn real_main() -> Result<(), String> {
         Logger::new_to_stdout()
     });
 
+    let log = TaggedLogger::new("CONTROLADOR", logger.clone());
+
+    log.write("Simulando transacciones");
     simular_transacciones(
         TaggedLogger::new("SIMULACION", logger.clone()),
         "transacciones.csv", 
         argumentos.value_of("Clientes").unwrap_or("10").parse::<u32>().unwrap(), 
         64
     ).expect("Error al generar el archivo de transacciones");
-    //------------------------------------------Procesamiento del archivo----------------------------
 
-    // inicializo canales 
-    let (tx_in, rx_in) = channel();
-    let (tx_out, rx_out) = channel();
-    let (tx_hash, rx_hash) = channel();
-    let (tx_auth, rx_auth) = channel();
+    log.write("Iniciando procesador del archivo");
+    let (rx_cashin, 
+         rx_cashout, 
+         handle_procesador) = match Procesador::iniciar("transacciones.csv") {
+        Ok(r) => r,
+        Err(e) => return Err(format!("{}", e))
+    };
 
-    // Proceso de las entradas del archivo 
-    let mut proc = Procesador::new(String::from("transacciones.csv"), tx_in, tx_out);
+    log.write("Iniciando proveedor externo de hashes");
+    let (rx_hash, handle_hash) = ProveedorExterno::iniciar();
 
-    let t_procesador = thread::spawn(move || {
-        proc.procesar();
-    });
+    let proveedor_autorizacion = Arc::new(Mutex::new(rx_hash));
+    let proveedores_transaccion = vec![
+        Arc::new(Mutex::new(rx_cashin)),
+        Arc::new(Mutex::new(rx_cashout))
+    ];
 
-    //inicializo el provedor externo    
-    let tx_has_mut = Arc::new(Mutex::new(tx_hash)); // para que no llore el compilador 
+    log.write("Iniciando workers");
+    let (rx_auth, handles_worker) = iniciar_workers(
+        3,
+        &proveedores_transaccion,
+        proveedor_autorizacion,
+        logger
+    );
 
-    let provedor_externo = Arc::new(ProvedorExterno::new(tx_has_mut.clone()));
-    let provedor_ext_ref = provedor_externo.clone();
-    let t_provedor = std::thread::spawn(move || {
-        provedor_ext_ref.crear_hashes();
-    });
-
-    // inicializo workers cashin y cashout
-    let prov_hash = Arc::new(Mutex::new(rx_hash));
-    let prov_hash_1 = prov_hash.clone();
-    let prov_hash_2 = prov_hash.clone();
-
-    let cash_in = Arc::new(Mutex::new(rx_in));
-    let rx_cashin = cash_in.clone();
-
-    let cash_out = Arc::new(Mutex::new(rx_out));
-    let rx_cashout = cash_out.clone();
-
-    let tx_auth_1 = tx_auth.clone();
-    let tx_auth_2 = tx_auth.clone();
-    let t_workers_in = iniciar_hilos_workers(3, prov_hash_1, rx_cashin, tx_auth_1);
-    let t_workers_out = iniciar_hilos_workers(3, prov_hash_2, rx_cashout, tx_auth_2);
-
-    // No se porque se queda trabajo en el for, se tendrian que cerrar los tx_auth
-    // y seguir pero se queda ahi. Lo demas parece que funca
-    println!("------------------------Operaciones Auth------------------------------");
-    for transaccion in rx_auth{
-        println!("{:?}", transaccion);
+    for transaccion in rx_auth {
+        log.write(&format!("Transacción autorizada: {}", 
+            transaccion.transaccion.id_transaccion))
     }
 
-    println!("------------------------Operaciones termine------------------------------");
+    log.write("Todas las operaciones fueron procesadas. Finalizando.");
 
-    for worker_in in t_workers_in {
-        //worker_in.cerrar();
-        worker_in.join().expect("no se pudo joinear hilo in");
+    // Esperar a que finalicen primero los workers
+    for handle_worker in handles_worker {
+        handle_worker.join().expect("Cannot join worker thread");
     }
-
-    for worker_out in t_workers_out {
-        //worker_out.cerrar();
-        worker_out.join().expect("no se pudo joinear hilo out");
-    }
-
-    t_procesador.join().unwrap();
-
-    provedor_externo.cerrar();
-    t_provedor.join().unwrap();
+    log.write("Todos los workers finalizaron");
     
+    // Detener el hasher
+    // Podría bloquearse si rx_hash no se cierra antes
+    handle_hash.join().expect("Cannot join hasher thread");
+    log.write("El proveedor externo finalizó");
+
+    // Esperar a que termine el procesador
+    // Podría bloquearse si rx_cashin/rx_cashout no se cierran antes
+    handle_procesador.join().expect("Cannot join processor thread");
+    log.write("El procesador de archivo terminó");
+
+    log.write("Terminado");
     Ok(())
 }
