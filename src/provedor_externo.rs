@@ -6,8 +6,7 @@ use std::{
         mpsc::Sender,
         Mutex,
     },
-    time::Duration,
-    };
+};
 
 pub struct ProvedorExterno {
     clientes: Arc<Mutex<Sender<u32>>>,

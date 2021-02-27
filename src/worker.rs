@@ -9,7 +9,6 @@ use std::{
         },
     },
     thread::JoinHandle, 
-    fs::File,
 };
 
 use crate::procesador::Transaccion;
