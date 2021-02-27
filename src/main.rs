@@ -117,7 +117,5 @@ fn real_main() -> Result<(), String> {
     provedor_externo.cerrar();
     t_provedor.join().unwrap();
     
-    logger.close();
-    
     Ok(())
 }

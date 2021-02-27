@@ -37,14 +37,6 @@ impl Logger {
         }
     }
 
-    /// Vacía los buffers y cierra el archivo de log.
-    pub fn close(&self) {
-        if let Some(mutex_lock) = &self.file {
-            let mut file = mutex_lock.lock().expect("log mutex poisoned");
-            file.flush().expect("Error al flushear el log");
-        }
-    }
-
     /// Obtiene el tiempo que pasó desde que se creó el Logger hasta
     /// que se llamó a este método.
     pub fn get_elapsed_time(&self) -> Duration {
