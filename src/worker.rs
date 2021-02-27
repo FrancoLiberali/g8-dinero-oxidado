@@ -11,27 +11,12 @@ use std::{
     thread::JoinHandle, 
 };
 
-use crate::procesador::Transaccion;
-
-#[derive(Debug)]
-pub struct TransaccionAuth {
-    transaccion: Transaccion,
-    hash_auth: u32,
-}
-
-impl TransaccionAuth{
-    pub fn new(transaccion: Transaccion, hash_auth: u32) -> Self {
-        Self {
-            transaccion,
-            hash_auth,
-        }
-    }
-}
+use crate::transaccion::{Transaccion, TransaccionAutorizada};
 
 pub fn iniciar_hilos_workers(n_workers: u32, 
                              provedor_ext: Arc<Mutex<Receiver<u32>>>,
                              transacciones: Arc<Mutex<Receiver<Transaccion>>>,
-                             autorizador: Sender<TransaccionAuth>)
+                             autorizador: Sender<TransaccionAutorizada>)
                              -> Vec<JoinHandle<()>> {
     let mut handles = vec![];
     
@@ -50,13 +35,15 @@ pub fn iniciar_hilos_workers(n_workers: u32,
 pub struct Worker {
     provedor_ext: Arc<Mutex<Receiver<u32>>>,
     transacciones: Arc<Mutex<Receiver<Transaccion>>>,
-    autorizador: Sender<TransaccionAuth>,
+    autorizador: Sender<TransaccionAutorizada>,
     apagado: AtomicBool,
 }
 
 impl Worker {
 
-    pub fn new(provedor_ext: Arc<Mutex<Receiver<u32>>>, transacciones: Arc<Mutex<Receiver<Transaccion>>>, autorizador: Sender<TransaccionAuth>) -> Self {
+    pub fn new(provedor_ext: Arc<Mutex<Receiver<u32>>>, 
+               transacciones: Arc<Mutex<Receiver<Transaccion>>>, 
+               autorizador: Sender<TransaccionAutorizada>) -> Self {
        Self { 
             provedor_ext,
             transacciones,
@@ -82,7 +69,7 @@ impl Worker {
             let hash = provedor.recv().unwrap();
 
             //agregar hash
-            let transaccion_autorizada = TransaccionAuth::new(transaccion, hash);
+            let transaccion_autorizada = TransaccionAutorizada::new(transaccion, hash);
             //enviar hash
             self.autorizador.send(transaccion_autorizada).unwrap();
 

@@ -1,20 +1,9 @@
-extern crate csv;
-
 use std::{
     sync::mpsc::Sender,
     fs::File,
 };
 use csv::Reader;
-use serde::Deserialize;
-
-#[derive(Debug, Deserialize)]
-pub struct Transaccion {
-    Transaction: u32,
-    User_id: u32,
-    Timestamp: u32,
-    Type: String,
-    Amount: f32,
-}
+use crate::transaccion::{Transaccion, TipoTransaccion};
 
 pub struct Procesador {
     file: Reader<File>,
@@ -23,7 +12,6 @@ pub struct Procesador {
 }
 
 impl Procesador {
-
     pub fn new(file: String, cashin: Sender<Transaccion>, cashout: Sender<Transaccion>) -> Self {
        Self { 
            file: csv::Reader::from_path(file).unwrap(),
@@ -32,16 +20,15 @@ impl Procesador {
        }
    }
 
-   pub fn procesar(&mut self){
-    for result in self.file.deserialize() {
-        let record: Transaccion = result.unwrap();
-        //println!("{:?}", record);
-        if record.Type == "cash_in"{
-            self.cashin.send(record).unwrap();
-        } else {
-            self.cashout.send(record).unwrap();
+    pub fn procesar(&mut self) {
+        for registro in self.file.deserialize() {
+            let transaccion: Transaccion = registro.unwrap();
+            let channel = match transaccion.tipo {
+                TipoTransaccion::CashIn => &self.cashin,
+                TipoTransaccion::CashOut => &self.cashout
+            };
+            
+            channel.send(transaccion).expect("channel cerrado");
         }
     }
-   }
-
 }

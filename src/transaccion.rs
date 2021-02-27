@@ -1,23 +1,14 @@
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Serialize, Deserialize)]
 pub enum TipoTransaccion {
+    #[serde(rename = "cash_in")]
     CashIn,
+    #[serde(rename = "cash_out")]
     CashOut
 }
 
-impl Serialize for TipoTransaccion {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(match self {
-            TipoTransaccion::CashIn => "cash_in",
-            TipoTransaccion::CashOut => "cash_out"
-        })
-    }
-}
-
-#[derive(Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Transaccion {
     #[serde(rename = "Transaction")]
     pub id_transaccion: u32,
@@ -29,4 +20,21 @@ pub struct Transaccion {
     pub tipo: TipoTransaccion,
     #[serde(rename = "Amount")]
     pub monto: f32
+}
+
+type HashAutorizacion = u32;
+
+#[derive(Debug)]
+pub struct TransaccionAutorizada {
+    transaccion: Transaccion,
+    autorizacion: HashAutorizacion
+}
+
+impl TransaccionAutorizada {
+    pub fn new(transaccion: Transaccion, autorizacion: HashAutorizacion) -> Self {
+        Self {
+            transaccion,
+            autorizacion,
+        }
+    }
 }
