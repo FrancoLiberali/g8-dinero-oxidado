@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TipoTransaccion {
@@ -28,6 +29,12 @@ pub type HashAutorizacion = u32;
 pub struct TransaccionAutorizada {
     pub transaccion: Transaccion,
     pub autorizacion: HashAutorizacion
+}
+
+impl fmt::Display for TransaccionAutorizada {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TransaccionAutorizada (id = {})", self.transaccion.id_transaccion)
+    }
 }
 
 impl TransaccionAutorizada {

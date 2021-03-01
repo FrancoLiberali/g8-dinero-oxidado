@@ -10,7 +10,7 @@ mod proveedor_externo;
 mod worker;
 mod transaccion;
 mod simulacion;
-//mod AI;
+mod ia;
 
 use std::sync::{Arc, Mutex, mpsc::channel};
 
@@ -22,6 +22,7 @@ use procesador::Procesador;
 use proveedor_externo::ProveedorExterno;
 use worker::iniciar_workers_de_tipo;
 use worker::TipoWorker;
+use ia::iniciar_procesadores_ia;
 
 fn main()  {
     if let Err(e) = real_main() {
@@ -65,7 +66,16 @@ fn real_main() -> Result<(), String> {
     let (rx_hash, handle_hash) = ProveedorExterno::iniciar();
     let proveedor_autorizacion = Arc::new(Mutex::new(rx_hash));
 
-    let (tx_transacciones_autorizadas, rx_transacciones_autorizadas) = channel();
+    let (tx_transacciones_autorizadas, rx_transacciones_autorizadas_s) = channel();
+    let rx_transacciones_autorizadas = Arc::new(Mutex::new(rx_transacciones_autorizadas_s));
+
+    let (tx_transacciones_validadas, rx_transacciones_validadas_s) = channel();
+    // let rx_transacciones_validadas = Arc::new(Mutex::new(rx_transacciones_validadas_s));
+    let handles_procesadores_ia = iniciar_procesadores_ia(
+        3, // TODO usar parametro
+        rx_transacciones_autorizadas,
+        tx_transacciones_validadas,
+        logger.clone());
 
     log.write("Iniciando workers cash in");
     let handles_worker_cash_in = iniciar_workers_de_tipo(
@@ -86,8 +96,8 @@ fn real_main() -> Result<(), String> {
         logger
     );
 
-    for transaccion in rx_transacciones_autorizadas {
-        log.write(&format!("Transacción autorizada: {}",
+    for transaccion in rx_transacciones_validadas_s {
+        log.write(&format!("Transacción validada: {}",
             transaccion.transaccion.id_transaccion))
     }
 
@@ -106,6 +116,10 @@ fn real_main() -> Result<(), String> {
     // Podría bloquearse si rx_hash no se cierra antes
     handle_hash.join().expect("Cannot join hasher thread");
     log.write("El proveedor externo finalizó");
+
+    for handle_procesador_ia in handles_procesadores_ia {
+        handle_procesador_ia.join().expect("Cannot join ia thread");
+    }
 
     // Esperar a que termine el procesador
     // Podría bloquearse si rx_cashin/rx_cashout no se cierran antes
