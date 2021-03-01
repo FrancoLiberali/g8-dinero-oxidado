@@ -9,6 +9,7 @@ use rand::{Rng, prelude::StdRng};
 use crate::transaccion::{Transaccion, TipoTransaccion};
 
 pub struct Cliente {
+    // TODO dejar solo id y saldo acá
     pub id: u32,
     n_transaccion: Arc<AtomicU32>,
     rng: Arc<Mutex<StdRng>>,
