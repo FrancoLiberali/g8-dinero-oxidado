@@ -91,6 +91,7 @@ impl Worker {
                 transaccion, 
                 hash
             );
+            self.log.write(&*format!("{}", transaccion_autorizada));
 
             self.enviar_transaccion_autorizada(transaccion_autorizada);
         }

@@ -65,7 +65,10 @@ impl ProcesadorIA {
         while let Some(transaccion) = self.obtener_transaccion() {
             let validacion = self.detectar_lavado(transaccion);
             match validacion {
-                Ok(transaccion_validada) => self.enviar_transaccion_validada(transaccion_validada),
+                Ok(transaccion_validada) => {
+                    self.log.write(&*format!("Transacción validada: {}", transaccion_validada));
+                    self.enviar_transaccion_validada(transaccion_validada)
+                },
                 Err(transaccion_invalidada) => self.log.write(&format!("Lavado de dinero detectado: {}", transaccion_invalidada)),
             }
         }

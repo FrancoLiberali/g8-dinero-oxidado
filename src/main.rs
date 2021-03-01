@@ -11,6 +11,7 @@ mod worker;
 mod transaccion;
 mod simulacion;
 mod ia;
+mod worker_final;
 
 use std::sync::{Arc, Mutex, mpsc::channel};
 
@@ -23,6 +24,7 @@ use proveedor_externo::ProveedorExterno;
 use worker::iniciar_workers_de_tipo;
 use worker::TipoWorker;
 use ia::iniciar_procesadores_ia;
+use worker_final::WorkerFinal;
 
 fn main()  {
     if let Err(e) = real_main() {
@@ -31,6 +33,7 @@ fn main()  {
 }
 
 const CANTIDAD_DE_CLIENTES_DEFAULT: &str = "10";
+const ARCHIVO_TRANSACCIONES: &str = "transacciones.csv";
 
 fn real_main() -> Result<(), String> {
     // Parser de argumentos 
@@ -47,9 +50,9 @@ fn real_main() -> Result<(), String> {
     let log = TaggedLogger::new("CONTROLADOR", logger.clone());
 
     log.write("Simulando transacciones");
-    simular_transacciones(
+    let clientes = simular_transacciones(
         TaggedLogger::new("SIMULACION", logger.clone()),
-        "transacciones.csv",
+        ARCHIVO_TRANSACCIONES,
         argumentos.value_of("Clientes").unwrap_or(CANTIDAD_DE_CLIENTES_DEFAULT).parse::<u32>().unwrap(),
         64 // TODO semilla aleatoria
     ).expect("Error al generar el archivo de transacciones");
@@ -57,7 +60,7 @@ fn real_main() -> Result<(), String> {
     log.write("Iniciando procesador del archivo");
     let (rx_cashin,
          rx_cashout,
-         handle_procesador) = match Procesador::iniciar("transacciones.csv") {
+         handle_procesador) = match Procesador::iniciar(ARCHIVO_TRANSACCIONES) {
         Ok(r) => r,
         Err(e) => return Err(format!("{}", e))
     };
@@ -69,13 +72,14 @@ fn real_main() -> Result<(), String> {
     let (tx_transacciones_autorizadas, rx_transacciones_autorizadas_s) = channel();
     let rx_transacciones_autorizadas = Arc::new(Mutex::new(rx_transacciones_autorizadas_s));
 
-    let (tx_transacciones_validadas, rx_transacciones_validadas_s) = channel();
-    // let rx_transacciones_validadas = Arc::new(Mutex::new(rx_transacciones_validadas_s));
+    let (tx_transacciones_validadas, rx_transacciones_validadas) = channel();
+
     let handles_procesadores_ia = iniciar_procesadores_ia(
         3, // TODO usar parametro
         rx_transacciones_autorizadas,
         tx_transacciones_validadas,
-        logger.clone());
+        logger.clone()
+    );
 
     log.write("Iniciando workers cash in");
     let handles_worker_cash_in = iniciar_workers_de_tipo(
@@ -93,15 +97,21 @@ fn real_main() -> Result<(), String> {
         Arc::new(Mutex::new(rx_cashout)),
         proveedor_autorizacion,
         tx_transacciones_autorizadas,
-        logger
+        logger.clone()
     );
 
-    for transaccion in rx_transacciones_validadas_s {
-        log.write(&format!("Transacción validada: {}",
-            transaccion.transaccion.id_transaccion))
-    }
+    let handle_worker_final = WorkerFinal::iniciar(
+        TaggedLogger::new("WORKER FINAL", logger.clone()),
+        rx_transacciones_validadas,
+        clientes
+    );
 
+    handle_worker_final.join().expect("Cannot join worker thread");
     log.write("Todas las operaciones fueron procesadas. Finalizando.");
+
+    for handle_procesador_ia in handles_procesadores_ia {
+        handle_procesador_ia.join().expect("Cannot join ia thread");
+    }
 
     // Esperar a que finalicen primero los workers
     for handle_worker in handles_worker_cash_in {
@@ -116,10 +126,6 @@ fn real_main() -> Result<(), String> {
     // Podría bloquearse si rx_hash no se cierra antes
     handle_hash.join().expect("Cannot join hasher thread");
     log.write("El proveedor externo finalizó");
-
-    for handle_procesador_ia in handles_procesadores_ia {
-        handle_procesador_ia.join().expect("Cannot join ia thread");
-    }
 
     // Esperar a que termine el procesador
     // Podría bloquearse si rx_cashin/rx_cashout no se cierran antes
