@@ -11,7 +11,7 @@ use crate::{
 const CANTIDAD_OPERACIONES_POR_CLIENTE: u32 = 10;
 
 pub fn simular_transacciones(log: TaggedLogger,
-                             ruta_archivo: &str, 
+                             ruta_archivo: &str,
                              n_clientes: u32,
                              semilla: u64) -> Result<(), csv::Error> {
     log.write(&format!("Generando {} con {} clientes y {} operaciones por cliente.", 
@@ -27,9 +27,9 @@ pub fn simular_transacciones(log: TaggedLogger,
 
     for n in 0..n_clientes {
         let cliente = Cliente::new(
-            archivo.clone(), 
-            n + 1, 
-            n_transaccion.clone(), 
+            archivo.clone(),
+            n + 1,
+            n_transaccion.clone(),
             rng.clone(),
             CANTIDAD_OPERACIONES_POR_CLIENTE
         );

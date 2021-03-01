@@ -40,7 +40,7 @@ impl Procesador {
                 TipoTransaccion::CashIn => &self.cashin,
                 TipoTransaccion::CashOut => &self.cashout
             };
-            
+
             channel.send(transaccion).expect("channel cerrado");
         }
     }

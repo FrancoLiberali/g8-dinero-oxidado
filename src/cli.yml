@@ -13,7 +13,7 @@ args:
     - Workers cashout:
         short: o
         help: Numeros de workers cashout
-        takes_value: true   
+        takes_value: true
     - Clientes:
         short: c
         help: Numeros de clientes
