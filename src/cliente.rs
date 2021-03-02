@@ -5,32 +5,29 @@ use std::{
     sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}},
 };
 use csv::Writer;
-use rand::{Rng, prelude::StdRng};
+use rand::{Rng, SeedableRng, prelude::StdRng};
 use crate::transaccion::{Transaccion, TipoTransaccion};
 
 pub struct Cliente {
     // TODO dejar solo id y saldo acá
     pub id: u32,
     n_transaccion: Arc<AtomicU32>,
-    rng: Arc<Mutex<StdRng>>,
     saldo: Mutex<f32>
 }
 
 impl Cliente {
     pub fn new(
                id: u32, 
-               n_transaccion: Arc<AtomicU32>,
-               rng: Arc<Mutex<StdRng>>) -> Self {
+               n_transaccion: Arc<AtomicU32>) -> Self {
         Self { 
             id,
             n_transaccion,
-            rng,
             saldo: Mutex::new(0.0) // TODO poner un saldo inicial random
         }
     }
 
-    pub fn operar(&self, file: Arc<Mutex<Writer<File>>>, n_operaciones: u32) {
-        let mut rng = self.rng.lock().expect("posioned rng");
+    pub fn operar(&self, file: Arc<Mutex<Writer<File>>>, n_operaciones: u32, semilla: u64) {
+        let mut rng = StdRng::seed_from_u64(semilla + self.id as u64);
 
         for _ in 0..n_operaciones {
             let tipo = if rng.gen() {
