@@ -50,7 +50,7 @@ impl Cliente {
         let procesar_ahora: f64 = self.rng.lock().expect("poisoned").gen();
         if procesar_ahora < PROBABILIDAD_TRANSACCION_NO_PROCESADA {
             self.escribir_transaccion_pendiente(TipoTransaccion::CashOut, monto, archivo.clone());
-            cliente_destino.escribir_transaccion_pendiente(TipoTransaccion::CashIn, monto, archivo.clone());
+            cliente_destino.escribir_transaccion_pendiente(TipoTransaccion::CashIn, monto, archivo);
         } else {
             cliente_destino.cash_in(monto);
             self.cash_out(monto);
@@ -72,16 +72,16 @@ impl Cliente {
 
     pub fn cash_in(&self, monto: f32) {
         let mut saldo = self.saldo.lock().expect("poisoned");
-        *saldo = *saldo + monto;
+        *saldo += monto;
     }
 
     pub fn cash_out(&self, monto: f32) {
         let mut saldo = self.saldo.lock().expect("poisoned");
-        *saldo = *saldo - monto;
+        *saldo -= monto;
     }
 
     pub fn get_saldo(&self) -> f32 {
-        let mut saldo = self.saldo.lock().expect("poisoned");
+        let saldo = self.saldo.lock().expect("poisoned");
         *saldo
     }
 }

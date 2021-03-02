@@ -1,17 +1,14 @@
-use std::{
-    sync::{
+use std::{sync::{
         mpsc::{Sender, Receiver},
         Arc, Mutex,
-    },
-    thread,
-    thread::JoinHandle,
-};
+    }, thread, thread::JoinHandle, time::Duration};
 use rand::{Rng, SeedableRng, prelude::StdRng};
 use crate::{
     logger::{Logger, TaggedLogger},
     transaccion::TransaccionAutorizada
 };
 
+const TIEMPO_MAXIMO_IA: u64 = 25; // 25 millis
 const PROBABILIDAD_DE_INVALIDA: f64 = 0.1; // 10%
 
 /// Inicia n_procesadores de autorizacion ia
@@ -29,7 +26,7 @@ pub fn iniciar_procesadores_ia(n_procesadores: u32,
                 TaggedLogger::new(&format!("PROCESADOR IA {}", procesador_id), logger.clone()),
                 rx_transacciones_autorizadas.clone(),
                 tx_transacciones_validas.clone(),
-                semilla
+                semilla + procesador_id as u64
             )
         );
     }
@@ -91,8 +88,12 @@ impl ProcesadorIA {
     }
 
     fn detectar_lavado(&self, transaccion: TransaccionAutorizada) -> Result<TransaccionAutorizada, TransaccionAutorizada> {
-        // TODO sleep
         let mut rng = self.rng.lock().expect("posioned rng");
+        thread::sleep(
+            Duration::from_millis(
+                rng.gen_range(0..TIEMPO_MAXIMO_IA) as u64
+            )
+        );
         let valida: f64 = rng.gen();
         if valida < PROBABILIDAD_DE_INVALIDA {
             Err(transaccion)

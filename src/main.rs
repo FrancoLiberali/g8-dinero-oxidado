@@ -50,7 +50,7 @@ fn real_main() -> Result<(), String> {
     let log = TaggedLogger::new("CONTROLADOR", logger.clone());
 
     log.write("Simulando transacciones");
-    let semilla = 64 as u64; // TODO semilla aleatoria o por parametro
+    let semilla = 64_u64; // TODO semilla aleatoria o por parametro
 
     let clientes = simular_transacciones(
         TaggedLogger::new("SIMULACION", logger.clone()),
@@ -104,7 +104,7 @@ fn real_main() -> Result<(), String> {
     );
 
     let handle_worker_final = WorkerFinal::iniciar(
-        TaggedLogger::new("WORKER FINAL", logger.clone()),
+        TaggedLogger::new("WORKER FINAL", logger),
         rx_transacciones_validadas,
         clientes
     );

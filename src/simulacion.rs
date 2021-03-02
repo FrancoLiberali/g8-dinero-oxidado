@@ -57,5 +57,5 @@ pub fn simular_transacciones(log: TaggedLogger,
     }
 
     log.write("Simulación terminada");
-    Ok(clientes_arc.clone())
+    Ok(clientes_arc)
 }
