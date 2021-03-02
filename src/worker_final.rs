@@ -1,13 +1,13 @@
-use std::{
-    sync::{Arc, mpsc::Receiver},
-    thread,
-    thread::JoinHandle,
-};
+use std::{sync::{Arc, mpsc::Receiver}, thread, thread::JoinHandle, time::SystemTime};
+use csv::Writer;
+
 use crate::{
     logger::TaggedLogger,
-    transaccion::{TipoTransaccion, TransaccionAutorizada},
+    transaccion::{TipoTransaccion, TransaccionAutorizada, TransaccionExitosa},
     cliente::Cliente,
 };
+
+const ARCHIVO_SALDOS: &str = "saldos.csv";
 
 pub struct WorkerFinal {
     log: TaggedLogger,
@@ -34,6 +34,8 @@ impl WorkerFinal {
 
     fn procesar_transacciones(&self) {
         self.log.write("Worker final iniciado");
+        let mut writer = Writer::from_path(ARCHIVO_SALDOS).expect("El archivo de saldos finales no puedo ser abierto");
+
         while let Some(transaccion_autorizada) = self.obtener_transaccion() {
             self.log.write(&*format!("Transacción recibida: {}", transaccion_autorizada));
             let cliente_id = transaccion_autorizada.transaccion.id_cliente;
@@ -44,6 +46,13 @@ impl WorkerFinal {
                 TipoTransaccion::CashOut => cliente_objetivo.cash_out(monto),
             }
             self.log.write(&*format!("Transacción procesada: {}", transaccion_autorizada));
+
+            let timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).expect("SystemTime before UNIX EPOCH!").as_millis();
+            writer.serialize(TransaccionExitosa {
+                transaccion: transaccion_autorizada,
+                saldo_final: cliente_objetivo.get_saldo(),
+                timestamp
+            }).unwrap();
         }
         self.log.write("Worker final terminado");
     }

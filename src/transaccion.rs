@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
 use std::fmt;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,6 +34,33 @@ pub struct TransaccionAutorizada {
 impl fmt::Display for TransaccionAutorizada {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "TransaccionAutorizada (id = {})", self.transaccion.id)
+    }
+}
+
+#[derive(Debug)]
+pub struct TransaccionExitosa {
+    pub transaccion: TransaccionAutorizada,
+    pub saldo_final: f32,
+    pub timestamp: u128
+}
+
+impl Serialize for TransaccionExitosa {
+    // TODO quisiera no tener que hacer esto, pero no encontre como hacer que la serializacion de un struct use la de los structs que tiene dentro
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // 7 is the number of fields in the struct.
+        let mut state = serializer.serialize_struct("TransaccionExitosa", 7)?;
+        state.serialize_field("Transaction", &self.transaccion.transaccion.id)?;
+        state.serialize_field("User_id", &self.transaccion.transaccion.id_cliente)?;
+        state.serialize_field("Transaction_Timestamp", &self.transaccion.transaccion.timestamp)?;
+        state.serialize_field("Type", &self.transaccion.transaccion.tipo)?;
+        state.serialize_field("Amount", &self.transaccion.transaccion.monto)?;
+        state.serialize_field("Authorization_hash", &self.transaccion.autorizacion)?;
+        state.serialize_field("Timestamp", &self.timestamp)?;
+        state.serialize_field("Final_balance", &self.saldo_final)?;
+        state.end()
     }
 }
 

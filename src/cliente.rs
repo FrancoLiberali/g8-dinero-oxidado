@@ -79,4 +79,9 @@ impl Cliente {
         let mut saldo = self.saldo.lock().expect("poisoned");
         *saldo = *saldo - monto;
     }
+
+    pub fn get_saldo(&self) -> f32 {
+        let mut saldo = self.saldo.lock().expect("poisoned");
+        *saldo
+    }
 }
