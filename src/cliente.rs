@@ -7,10 +7,9 @@ use uuid::Uuid;
 use crate::transaccion::{Transaccion, TipoTransaccion};
 
 pub struct Cliente {
-    // TODO dejar solo id y saldo acá
     pub id: Uuid,
-    n_transaccion: Arc<AtomicU32>,
     saldo: Mutex<f32>,
+    n_transaccion: Arc<AtomicU32>,
     rng: Mutex<StdRng>,
 }
 
@@ -29,8 +28,8 @@ impl Cliente {
                mut rng: StdRng) -> Self {
         Self {
             id,
-            n_transaccion,
             saldo: Mutex::new(rng.gen_range(SALDO_INICIAL_MINIMO..SALDO_INICIAL_MAXIMO)),
+            n_transaccion,
             rng: Mutex::new(rng)
         }
     }
