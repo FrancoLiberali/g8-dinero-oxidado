@@ -1,6 +1,6 @@
 extern crate csv;
 
-use std::{fs::File, sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}}};
+use std::{fs::File, sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}}, time::SystemTime};
 use csv::Writer;
 use rand::{Rng, prelude::StdRng};
 use uuid::Uuid;
@@ -60,11 +60,11 @@ impl Cliente {
 
     fn escribir_transaccion_pendiente(&self, tipo: TipoTransaccion, monto: f32, archivo: Arc<Mutex<Writer<File>>>) {
         let mut archivo_w = archivo.lock().expect("transactions file poisoned");
-    
+        let timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).expect("SystemTime before UNIX EPOCH!").as_millis();
         archivo_w.serialize(Transaccion {
             id: self.n_transaccion.fetch_add(1, Ordering::SeqCst),
             id_cliente: self.id,
-            timestamp: self.rng.lock().expect("poisoned").gen::<u32>(),
+            timestamp,
             tipo,
             monto
         }).unwrap();

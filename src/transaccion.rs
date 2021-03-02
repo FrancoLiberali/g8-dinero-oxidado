@@ -16,7 +16,7 @@ pub struct Transaccion {
     #[serde(rename = "User_id")]
     pub id_cliente: uuid::Uuid,
     #[serde(rename = "Timestamp")]
-    pub timestamp: u32,
+    pub timestamp: u128,
     #[serde(rename = "Type")]
     pub tipo: TipoTransaccion,
     #[serde(rename = "Amount")]
