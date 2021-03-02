@@ -23,7 +23,7 @@ pub struct Transaccion {
     pub monto: f32
 }
 
-pub type HashAutorizacion = u32;
+pub type HashAutorizacion = uuid::Uuid;
 
 #[derive(Debug)]
 pub struct TransaccionAutorizada {

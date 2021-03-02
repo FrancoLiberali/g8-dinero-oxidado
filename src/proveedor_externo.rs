@@ -1,8 +1,10 @@
 use std::{sync::mpsc, thread};
+use uuid::Uuid;
+
 use crate::transaccion::HashAutorizacion;
 
 pub struct ProveedorExterno {
-    clientes: mpsc::Sender<u32>,
+    clientes: mpsc::Sender<HashAutorizacion>,
 }
 
 impl ProveedorExterno {
@@ -19,7 +21,7 @@ impl ProveedorExterno {
 
     pub fn crear_hashes(&self) {
         loop {
-            let hash: HashAutorizacion = 2; // crear funcion de hashing copada
+            let hash: HashAutorizacion = Uuid::new_v4();
 
             if self.clientes.send(hash).is_err() {
                 // Nadie más quiere hashes
