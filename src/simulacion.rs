@@ -2,6 +2,8 @@ use std::{
     sync::{Arc, Mutex, atomic::AtomicU32}
 };
 use csv::Writer;
+use rand::{SeedableRng, prelude::StdRng};
+use uuid::Uuid;
 use crate::{
     cliente::Cliente,
     logger::TaggedLogger
@@ -19,11 +21,12 @@ pub fn simular_transacciones(log: TaggedLogger,
     // Crear los clientes
     let mut clientes = vec![];
     for n in 0..n_clientes {
+        let rng = StdRng::seed_from_u64(semilla + n as u64);
         let cliente = Arc::new(
             Cliente::new(
-                n + 1,
+                Uuid::new_v4(),
                 n_transaccion.clone(),
-                semilla
+                rng
             )
         );
 

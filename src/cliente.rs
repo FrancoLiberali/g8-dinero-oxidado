@@ -2,12 +2,13 @@ extern crate csv;
 
 use std::{fs::File, sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}}};
 use csv::Writer;
-use rand::{Rng, SeedableRng, prelude::StdRng};
+use rand::{Rng, prelude::StdRng};
+use uuid::Uuid;
 use crate::transaccion::{Transaccion, TipoTransaccion};
 
 pub struct Cliente {
     // TODO dejar solo id y saldo acá
-    pub id: u32,
+    pub id: Uuid,
     n_transaccion: Arc<AtomicU32>,
     saldo: Mutex<f32>,
     rng: Mutex<StdRng>,
@@ -23,10 +24,9 @@ const PROBABILIDAD_TRANSACCION_NO_PROCESADA: f64 = 0.1; // 10%
 
 impl Cliente {
     pub fn new(
-               id: u32, 
+               id: Uuid,
                n_transaccion: Arc<AtomicU32>,
-               semilla: u64) -> Self {
-        let mut rng = StdRng::seed_from_u64(semilla + id as u64);
+               mut rng: StdRng) -> Self {
         Self {
             id,
             n_transaccion,
@@ -63,7 +63,7 @@ impl Cliente {
         let mut archivo_w = archivo.lock().expect("transactions file poisoned");
     
         archivo_w.serialize(Transaccion {
-            id_transaccion: self.n_transaccion.fetch_add(1, Ordering::SeqCst),
+            id: self.n_transaccion.fetch_add(1, Ordering::SeqCst),
             id_cliente: self.id,
             timestamp: self.rng.lock().expect("poisoned").gen::<u32>(),
             tipo,

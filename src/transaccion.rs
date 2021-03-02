@@ -12,9 +12,9 @@ pub enum TipoTransaccion {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Transaccion {
     #[serde(rename = "Transaction")]
-    pub id_transaccion: u32,
+    pub id: u32,
     #[serde(rename = "User_id")]
-    pub id_cliente: u32,
+    pub id_cliente: uuid::Uuid,
     #[serde(rename = "Timestamp")]
     pub timestamp: u32,
     #[serde(rename = "Type")]
@@ -33,7 +33,7 @@ pub struct TransaccionAutorizada {
 
 impl fmt::Display for TransaccionAutorizada {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TransaccionAutorizada (id = {})", self.transaccion.id_transaccion)
+        write!(f, "TransaccionAutorizada (id = {})", self.transaccion.id)
     }
 }
 
