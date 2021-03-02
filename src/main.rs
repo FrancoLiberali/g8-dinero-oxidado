@@ -50,11 +50,13 @@ fn real_main() -> Result<(), String> {
     let log = TaggedLogger::new("CONTROLADOR", logger.clone());
 
     log.write("Simulando transacciones");
+    let semilla = 64 as u64; // TODO semilla aleatoria o por parametro
+
     let clientes = simular_transacciones(
         TaggedLogger::new("SIMULACION", logger.clone()),
         ARCHIVO_TRANSACCIONES,
         argumentos.value_of("Clientes").unwrap_or(CANTIDAD_DE_CLIENTES_DEFAULT).parse::<u32>().unwrap(),
-        64 // TODO semilla aleatoria o por parametro
+        semilla
     ).expect("Error al generar el archivo de transacciones");
 
     log.write("Iniciando procesador del archivo");
@@ -75,15 +77,16 @@ fn real_main() -> Result<(), String> {
     let (tx_transacciones_validadas, rx_transacciones_validadas) = channel();
 
     let handles_procesadores_ia = iniciar_procesadores_ia(
-        3, // TODO usar parametro
+        3, // TODO usar valor de entrada de cantidad de procesadores ia
         rx_transacciones_autorizadas,
         tx_transacciones_validadas,
+        semilla + 1,
         logger.clone()
     );
 
     log.write("Iniciando workers cash in");
     let handles_worker_cash_in = iniciar_workers_de_tipo(
-        3, // TODO usar valor de entrada de cantidad de workers
+        3, // TODO usar valor de entrada de cantidad de workers cash_in
         TipoWorker::CashIn,
         Arc::new(Mutex::new(rx_cashin)),
         proveedor_autorizacion.clone(),
@@ -92,7 +95,7 @@ fn real_main() -> Result<(), String> {
     );
     log.write("Iniciando workers cash out");
     let handles_worker_cash_out = iniciar_workers_de_tipo(
-        3, // TODO usar valor de entrada de cantidad de workers
+        3, // TODO usar valor de entrada de cantidad de workers cash_out
         TipoWorker::CashOut,
         Arc::new(Mutex::new(rx_cashout)),
         proveedor_autorizacion,
@@ -106,6 +109,7 @@ fn real_main() -> Result<(), String> {
         clientes
     );
 
+    // Esperar que finalicen todos los demas hilos
     handle_worker_final.join().expect("Cannot join worker thread");
     log.write("Todas las operaciones fueron procesadas. Finalizando.");
 
@@ -113,7 +117,7 @@ fn real_main() -> Result<(), String> {
         handle_procesador_ia.join().expect("Cannot join ia thread");
     }
 
-    // Esperar a que finalicen primero los workers
+    // Esperar a que finalicen los workers
     for handle_worker in handles_worker_cash_in {
         handle_worker.join().expect("Cannot join worker thread");
     }

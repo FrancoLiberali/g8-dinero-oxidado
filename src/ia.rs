@@ -18,6 +18,7 @@ const PROBABILIDAD_DE_INVALIDA: f64 = 0.1; // 10%
 pub fn iniciar_procesadores_ia(n_procesadores: u32,
                                rx_transacciones_autorizadas: Arc<Mutex<Receiver<TransaccionAutorizada>>>,
                                tx_transacciones_validas: Sender<TransaccionAutorizada>,
+                               semilla: u64,
                                logger: Arc<Logger>)
     -> Vec<JoinHandle<()>>
 {
@@ -27,7 +28,8 @@ pub fn iniciar_procesadores_ia(n_procesadores: u32,
             ProcesadorIA::iniciar(
                 TaggedLogger::new(&format!("PROCESADOR IA {}", procesador_id), logger.clone()),
                 rx_transacciones_autorizadas.clone(),
-                tx_transacciones_validas.clone()
+                tx_transacciones_validas.clone(),
+                semilla
             )
         );
     }
@@ -45,7 +47,8 @@ pub struct ProcesadorIA {
 impl ProcesadorIA {
     pub fn iniciar(log: TaggedLogger,
                    rx_transacciones_autorizadas: Arc<Mutex<Receiver<TransaccionAutorizada>>>,
-                   tx_transacciones_validas: Sender<TransaccionAutorizada>)
+                   tx_transacciones_validas: Sender<TransaccionAutorizada>,
+                   semilla: u64)
         -> JoinHandle<()>
     {
         thread::spawn(move || {
@@ -53,7 +56,7 @@ impl ProcesadorIA {
                 log,
                 rx_transacciones_autorizadas,
                 tx_transacciones_validas,
-                rng: Mutex::new(StdRng::seed_from_u64(35)), // TODO agregar semilla
+                rng: Mutex::new(StdRng::seed_from_u64(semilla)),
             };
 
             procesador.procesar_transacciones();
