@@ -34,7 +34,7 @@ impl WorkerFinal {
 
     fn procesar_transacciones(&self) {
         self.log.write("Worker final iniciado");
-        let mut writer = Writer::from_path(ARCHIVO_SALDOS).expect("El archivo de saldos finales no puedo ser abierto");
+        let mut writer = Writer::from_path(ARCHIVO_SALDOS).expect("El archivo de saldos finales no pudo ser abierto");
 
         while let Some(transaccion_autorizada) = self.obtener_transaccion() {
             self.log.write(&*format!("Transacción recibida: {}", transaccion_autorizada));
