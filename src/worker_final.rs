@@ -12,13 +12,13 @@ use crate::{
 pub struct WorkerFinal {
     log: TaggedLogger,
     rx_transacciones_validadas: Receiver<TransaccionAutorizada>,
-    clientes: Vec<Arc<Cliente>>
+    clientes: Arc<Vec<Arc<Cliente>>>
 }
 
 impl WorkerFinal {
     pub fn iniciar(log: TaggedLogger,
                    rx_transacciones_validadas: Receiver<TransaccionAutorizada>,
-                   clientes: Vec<Arc<Cliente>>)
+                   clientes: Arc<Vec<Arc<Cliente>>>)
         -> JoinHandle<()>
     {
         thread::spawn(move || {

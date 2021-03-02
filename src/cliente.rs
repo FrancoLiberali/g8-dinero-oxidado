@@ -1,9 +1,6 @@
 extern crate csv;
 
-use std::{
-    fs::File,
-    sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}},
-};
+use std::{fs::File, sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}}};
 use csv::Writer;
 use rand::{Rng, SeedableRng, prelude::StdRng};
 use crate::transaccion::{Transaccion, TipoTransaccion};
@@ -12,45 +9,66 @@ pub struct Cliente {
     // TODO dejar solo id y saldo acá
     pub id: u32,
     n_transaccion: Arc<AtomicU32>,
-    saldo: Mutex<f32>
+    saldo: Mutex<f32>,
+    rng: Mutex<StdRng>,
 }
+
+const SALDO_INICIAL_MINIMO: f32 = 100.0;
+const SALDO_INICIAL_MAXIMO: f32 = 10000.0;
+const CANTIDAD_MINIMA_OPERACIONES: u32 = 10;
+const CANTIDAD_MAXIMA_OPERACIONES: u32 = 100;
+const MONTO_MINIMO_TRANSFERENCIA: f32 = 10.0;
+const MONTO_MAXIMO_TRANSFERENCIA: f32 = 1000.0;
+const PROBABILIDAD_TRANSACCION_NO_PROCESADA: f64 = 0.1; // 10%
 
 impl Cliente {
     pub fn new(
                id: u32, 
-               n_transaccion: Arc<AtomicU32>) -> Self {
-        Self { 
+               n_transaccion: Arc<AtomicU32>,
+               semilla: u64) -> Self {
+        let mut rng = StdRng::seed_from_u64(semilla + id as u64);
+        Self {
             id,
             n_transaccion,
-            saldo: Mutex::new(0.0) // TODO poner un saldo inicial random
+            saldo: Mutex::new(rng.gen_range(SALDO_INICIAL_MINIMO..SALDO_INICIAL_MAXIMO)),
+            rng: Mutex::new(rng)
         }
     }
 
-    pub fn operar(&self, file: Arc<Mutex<Writer<File>>>, n_operaciones: u32, semilla: u64) {
-        let mut rng = StdRng::seed_from_u64(semilla + self.id as u64);
+    pub fn operar(&self, clientes: Arc<Vec<Arc<Cliente>>>, archivo: Arc<Mutex<Writer<File>>>) {
+        let cantidad_operaciones = self.rng.lock().expect("poisoned").gen_range(CANTIDAD_MINIMA_OPERACIONES..CANTIDAD_MAXIMA_OPERACIONES);
+        for _ in 0..cantidad_operaciones {
+            let indice_cliente_destino = self.rng.lock().expect("poisoned").gen_range(0..clientes.len() - 1);
+            let cliente_destino = &clientes[indice_cliente_destino];
 
-        for _ in 0..n_operaciones {
-            let tipo = if rng.gen() {
-                TipoTransaccion::CashIn
-            } else {
-                TipoTransaccion::CashOut
-            };
-
-            let monto = rng.gen::<u16>() as f32 / 1000.0;
-            let id_cliente: u32 = self.id;
-            let timestamp: u32 = rng.gen();
-            
-            let mut file = file.lock()
-                .expect("transactions file poisoned");
-            file.serialize(Transaccion {
-                id_transaccion: self.n_transaccion.fetch_add(1, Ordering::SeqCst),
-                id_cliente,
-                timestamp,
-                tipo,
-                monto
-            }).unwrap();
+            let monto_transferencia = self.rng.lock().expect("poisoned").gen_range(MONTO_MINIMO_TRANSFERENCIA..MONTO_MAXIMO_TRANSFERENCIA);
+            self.realizar_transferencia(cliente_destino, monto_transferencia, archivo.clone());
         }
 
+    }
+
+    fn realizar_transferencia(&self, cliente_destino: &Arc<Cliente>, monto: f32, archivo: Arc<Mutex<Writer<File>>>) {
+        let procesar_ahora: f64 = self.rng.lock().expect("poisoned").gen();
+        if procesar_ahora < PROBABILIDAD_TRANSACCION_NO_PROCESADA {
+            self.escribir_transaccion_pendiente(TipoTransaccion::CashOut, monto, archivo.clone());
+            cliente_destino.escribir_transaccion_pendiente(TipoTransaccion::CashIn, monto, archivo.clone());
+        } else {
+            cliente_destino.cash_in(monto);
+            self.cash_out(monto);
+        }
+
+    }
+
+    fn escribir_transaccion_pendiente(&self, tipo: TipoTransaccion, monto: f32, archivo: Arc<Mutex<Writer<File>>>) {
+        let mut archivo_w = archivo.lock().expect("transactions file poisoned");
+    
+        archivo_w.serialize(Transaccion {
+            id_transaccion: self.n_transaccion.fetch_add(1, Ordering::SeqCst),
+            id_cliente: self.id,
+            timestamp: self.rng.lock().expect("poisoned").gen::<u32>(),
+            tipo,
+            monto
+        }).unwrap();
     }
 
     pub fn cash_in(&self, monto: f32) {

@@ -54,7 +54,7 @@ fn real_main() -> Result<(), String> {
         TaggedLogger::new("SIMULACION", logger.clone()),
         ARCHIVO_TRANSACCIONES,
         argumentos.value_of("Clientes").unwrap_or(CANTIDAD_DE_CLIENTES_DEFAULT).parse::<u32>().unwrap(),
-        64 // TODO semilla aleatoria
+        64 // TODO semilla aleatoria o por parametro
     ).expect("Error al generar el archivo de transacciones");
 
     log.write("Iniciando procesador del archivo");
