@@ -20,13 +20,13 @@ pub fn simular_transacciones(log: TaggedLogger,
 
     // Crear los clientes
     let mut clientes = vec![];
-    for n in 0..n_clientes {
-        let rng = StdRng::seed_from_u64(semilla + n as u64);
+    let rng = Arc::new(Mutex::new(StdRng::seed_from_u64(semilla)));
+    for _ in 0..n_clientes {
         let cliente = Arc::new(
             Cliente::new(
                 Uuid::new_v4(),
                 n_transaccion.clone(),
-                rng
+                rng.clone()
             )
         );
 

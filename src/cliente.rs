@@ -10,7 +10,7 @@ pub struct Cliente {
     pub id: Uuid,
     saldo: Mutex<f32>,
     n_transaccion: Arc<AtomicU32>,
-    rng: Mutex<StdRng>,
+    rng: Arc<Mutex<StdRng>>,
 }
 
 const SALDO_INICIAL_MINIMO: f32 = 100.0;
@@ -25,12 +25,13 @@ impl Cliente {
     pub fn new(
                id: Uuid,
                n_transaccion: Arc<AtomicU32>,
-               mut rng: StdRng) -> Self {
+               rng: Arc<Mutex<StdRng>>) -> Self {
+        let saldo_inicial = rng.lock().expect("poisoned").gen_range(SALDO_INICIAL_MINIMO..SALDO_INICIAL_MAXIMO);
         Self {
             id,
-            saldo: Mutex::new(rng.gen_range(SALDO_INICIAL_MINIMO..SALDO_INICIAL_MAXIMO)),
+            saldo: Mutex::new(saldo_inicial),
             n_transaccion,
-            rng: Mutex::new(rng)
+            rng
         }
     }
 
