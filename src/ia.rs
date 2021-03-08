@@ -20,13 +20,14 @@ pub fn iniciar_procesadores_ia(n_procesadores: u32,
     -> Vec<JoinHandle<()>>
 {
     let mut handles_procesadores_ia = vec![];
+    let rng = Arc::new(Mutex::new(StdRng::seed_from_u64(semilla)));
     for procesador_id in 0..n_procesadores {
         handles_procesadores_ia.push(
             ProcesadorIA::iniciar(
                 TaggedLogger::new(&format!("PROCESADOR IA {}", procesador_id), logger.clone()),
                 rx_transacciones_autorizadas.clone(),
                 tx_transacciones_validas.clone(),
-                semilla + procesador_id as u64
+                rng.clone()
             )
         );
     }
@@ -38,14 +39,14 @@ pub struct ProcesadorIA {
     log: TaggedLogger,
     rx_transacciones_autorizadas: Arc<Mutex<Receiver<TransaccionAutorizada>>>,
     tx_transacciones_validas: Sender<TransaccionAutorizada>,
-    rng: Mutex<StdRng>,
+    rng: Arc<Mutex<StdRng>>,
 }
 
 impl ProcesadorIA {
     pub fn iniciar(log: TaggedLogger,
                    rx_transacciones_autorizadas: Arc<Mutex<Receiver<TransaccionAutorizada>>>,
                    tx_transacciones_validas: Sender<TransaccionAutorizada>,
-                   semilla: u64)
+                   rng: Arc<Mutex<StdRng>>)
         -> JoinHandle<()>
     {
         thread::spawn(move || {
@@ -53,7 +54,7 @@ impl ProcesadorIA {
                 log,
                 rx_transacciones_autorizadas,
                 tx_transacciones_validas,
-                rng: Mutex::new(StdRng::seed_from_u64(semilla)),
+                rng,
             };
 
             procesador.procesar_transacciones();
