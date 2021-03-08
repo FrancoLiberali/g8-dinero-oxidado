@@ -86,3 +86,76 @@ impl Cliente {
         *saldo
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use csv::StringRecord;
+    use rand::SeedableRng;
+    use uuid::Uuid;
+
+    #[test]
+    fn saldo_inicial_esta_entre_el_minimo_y_maximo() {
+        let cliente = crear_cliente();
+        assert!(cliente.get_saldo() >= SALDO_INICIAL_MINIMO);
+        assert!(cliente.get_saldo() <= SALDO_INICIAL_MAXIMO);
+    }
+
+    #[test]
+    fn realizar_transferencia_pasa_saldo_de_un_cliente_a_otro_cuando_no_queda_por_procesar() {
+        let ruta_archivo_tests = "archivo.csv";
+        let cliente1 = crear_cliente();
+        let cliente2 = Arc::new(crear_cliente());
+        let saldo1 = cliente1.get_saldo();
+        let saldo2 = cliente2.get_saldo();
+        let monto = 105.25;
+        cliente1.realizar_transferencia(
+            &cliente2,
+            monto,
+            Arc::new(Mutex::new(Writer::from_path(ruta_archivo_tests).unwrap()))
+        );
+        assert_eq!(cliente1.get_saldo(), saldo1 - monto);
+        assert_eq!(cliente2.get_saldo(), saldo2 + monto);
+    }
+
+    #[test]
+    fn realizar_transferencia_no_pasa_saldo_de_un_cliente_a_otro_si_queda_sin_procesar() {
+        let ruta_archivo_tests = "archivo_tests.csv";
+        let cliente1 = crear_cliente_con_semilla(21_64);
+        let cliente2 = Arc::new(crear_cliente());
+        let saldo1 = cliente1.get_saldo();
+        let saldo2 = cliente2.get_saldo();
+        let monto = 105.25;
+        cliente1.realizar_transferencia(
+            &cliente2,
+            monto,
+            Arc::new(Mutex::new(Writer::from_path(ruta_archivo_tests).unwrap()))
+        );
+        assert_eq!(cliente1.get_saldo(), saldo1);
+        assert_eq!(cliente2.get_saldo(), saldo2);
+        let mut reader = csv::Reader::from_path(ruta_archivo_tests).unwrap();
+        let mut record = StringRecord::new();
+        reader.read_record(&mut record).unwrap();
+        assert_eq!(record[0], *"1");
+        assert_eq!(record[1], cliente1.id.to_hyphenated().to_string());
+        assert_eq!(record[3], *"cash_out");
+        assert_eq!(record[4], monto.to_string());
+        reader.read_record(&mut record).unwrap();
+        assert_eq!(record[0], *"1");
+        assert_eq!(record[1], cliente2.id.to_hyphenated().to_string());
+        assert_eq!(record[3], *"cash_in");
+        assert_eq!(record[4], monto.to_string());
+    }
+
+    fn crear_cliente() -> Cliente {
+        crear_cliente_con_semilla(2_64)
+    }
+
+    fn crear_cliente_con_semilla(semilla: u64) -> Cliente {
+        Cliente::new(
+            Uuid::new_v4(),
+               Arc::new(AtomicU32::new(1)),
+               Arc::new(Mutex::new(StdRng::seed_from_u64(semilla)))
+        )
+    }
+}
