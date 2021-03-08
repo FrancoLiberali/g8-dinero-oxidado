@@ -83,9 +83,9 @@ fn real_main() -> Result<(), String> {
     ).expect("Error al generar el archivo de transacciones");
 
     log.write("Iniciando procesador del archivo");
-    let (rx_cashin,
-         rx_cashout,
-         handle_procesador) = match Procesador::iniciar(ARCHIVO_TRANSACCIONES) {
+    let (tx_cashin, rx_cashin) = channel();
+    let (tx_cashout, rx_cashout) = channel();
+    let handle_procesador = match Procesador::iniciar(ARCHIVO_TRANSACCIONES, tx_cashin, tx_cashout) {
         Ok(r) => r,
         Err(e) => return Err(format!("{}", e))
     };

@@ -1,7 +1,6 @@
 
 use std::{
-    sync::mpsc,
-    sync::mpsc::{Sender, Receiver},
+    sync::mpsc::Sender,
     fs::File,
     thread, thread::JoinHandle,
 };
@@ -15,10 +14,7 @@ pub struct Procesador {
 }
 
 impl Procesador {
-   pub fn iniciar(file: &str) -> Result<(Receiver<Transaccion>, Receiver<Transaccion>, JoinHandle<()>), csv::Error> {
-        let (tx_cashin, rx_cashin) = mpsc::channel();
-        let (tx_cashout, rx_cashout) = mpsc::channel();
-
+   pub fn iniciar(file: &str, tx_cashin: Sender<Transaccion>, tx_cashout: Sender<Transaccion>) -> Result<JoinHandle<()>, csv::Error> {
         let reader = csv::Reader::from_path(file)?;
         let handle = thread::spawn(move || {
             let mut procesador = Self {
@@ -30,7 +26,7 @@ impl Procesador {
             procesador.procesar();
         });
 
-        Ok((rx_cashin, rx_cashout, handle))
+        Ok(handle)
    }
 
     pub fn procesar(&mut self) {
@@ -43,5 +39,55 @@ impl Procesador {
 
             channel.send(transaccion).expect("channel cerrado");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc::channel;
+
+    use super::*;
+    use csv::Writer;
+    use uuid::Uuid;
+
+    #[test]
+    fn procesador_envia_por_canal_cashin_cuando_lee_un_cashin() {
+        let id_transaccion = 1;
+        let ruta_archivo_tests = "archivo_tests.csv";
+        let mut archivo = Writer::from_path(ruta_archivo_tests).unwrap();
+        let transaccion = Transaccion {
+            id: id_transaccion,
+            id_cliente: Uuid::new_v4(),
+            timestamp: 112315846_128,
+            tipo: TipoTransaccion::CashIn,
+            monto: 123.33
+        };
+        archivo.serialize(transaccion).unwrap();
+
+        let (tx_cashin, rx_cashin) = channel();
+        let (tx_cashout, _rx_cashout) = channel();
+
+        Procesador::iniciar(ruta_archivo_tests, tx_cashin, tx_cashout).unwrap();
+        assert_eq!(rx_cashin.recv().unwrap().id, id_transaccion)
+    }
+
+    #[test]
+    fn procesador_envia_por_canal_cashout_cuando_lee_un_cashin() {
+        let id_transaccion = 1;
+        let ruta_archivo_tests = "archivo_tests.csv";
+        let mut archivo = Writer::from_path(ruta_archivo_tests).unwrap();
+        archivo.serialize(Transaccion {
+            id: id_transaccion,
+            id_cliente: Uuid::new_v4(),
+            timestamp: 112315846_128,
+            tipo: TipoTransaccion::CashOut,
+            monto: 123.33
+        }).unwrap();
+
+        let (tx_cashin, _rx_cashin) = channel();
+        let (tx_cashout, rx_cashout) = channel();
+
+        Procesador::iniciar(ruta_archivo_tests, tx_cashin, tx_cashout).unwrap();
+        assert_eq!(rx_cashout.recv().unwrap().id, id_transaccion)
     }
 }

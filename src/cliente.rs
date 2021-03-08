@@ -102,6 +102,24 @@ mod tests {
     }
 
     #[test]
+    fn cash_out_reduce_saldo() {
+        let cliente = crear_cliente();
+        let saldo = cliente.get_saldo();
+        let monto = 33.3;
+        cliente.cash_out(monto);
+        assert_eq!(cliente.get_saldo(), saldo - monto);
+    }
+
+    #[test]
+    fn cash_out_aumenta_saldo() {
+        let cliente = crear_cliente();
+        let saldo = cliente.get_saldo();
+        let monto = 33.3;
+        cliente.cash_in(monto);
+        assert_eq!(cliente.get_saldo(), saldo + monto);
+    }
+
+    #[test]
     fn realizar_transferencia_pasa_saldo_de_un_cliente_a_otro_cuando_no_queda_por_procesar() {
         let ruta_archivo_tests = "archivo.csv";
         let cliente1 = crear_cliente();
