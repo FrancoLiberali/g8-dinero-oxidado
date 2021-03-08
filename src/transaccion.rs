@@ -45,7 +45,6 @@ pub struct TransaccionExitosa {
 }
 
 impl Serialize for TransaccionExitosa {
-    // TODO quisiera no tener que hacer esto, pero no encontre como hacer que la serializacion de un struct use la de los structs que tiene dentro
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
