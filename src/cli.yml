@@ -2,22 +2,44 @@ name: Dinero oxidado
 version: "1.0"
 about: Proyecto Rust 2
 args:
-    - Workers procesadores:
+    - Workers ia:
         short: p
-        help: Numeros de workers procesadores
+        long: workers_ia
+        help: Numeros de workers procesadores ia
+        required: false
         takes_value: true
     - Workers cashin:
         short: i
+        long: workers_cash_in
         help: Numeros de workers cashin
+        required: false
         takes_value: true
     - Workers cashout:
         short: o
+        long: workers_cash_out
         help: Numeros de workers cashout
+        required: false
         takes_value: true
     - Clientes:
         short: c
+        long: clientes
         help: Numeros de clientes
+        required: false
         takes_value: true
     - Debug:
         short: d
+        long: debug
+        required: false
         help: Modo debug
+    - Semilla simulacion:
+        short: s
+        long: semilla_simulacion
+        required: false
+        help: Semilla para la simulación de la transacciones entre clientes
+        takes_value: true
+    - Semilla ia:
+        short: a
+        long: semilla_ia
+        required: false
+        help: Semilla para el modulo ia de detección de lavado de dinero
+        takes_value: true

@@ -14,6 +14,7 @@ mod ia;
 mod worker_final;
 
 use std::sync::{Arc, Mutex, mpsc::channel};
+use rand::Rng;
 
 use clap::App;
 
@@ -33,6 +34,9 @@ fn main()  {
 }
 
 const CANTIDAD_DE_CLIENTES_DEFAULT: &str = "10";
+const CANTIDAD_DE_IA_DEFAULT: &str = "10";
+const CANTIDAD_DE_CASHIN_DEFAULT: &str = "10";
+const CANTIDAD_DE_CASHOUT_DEFAULT: &str = "10";
 const ARCHIVO_TRANSACCIONES: &str = "transacciones.csv";
 
 fn real_main() -> Result<(), String> {
@@ -40,23 +44,42 @@ fn real_main() -> Result<(), String> {
     let yaml = clap::load_yaml!("cli.yml");
     let argumentos = App::from_yaml(yaml).get_matches();
 
+    let exe = &std::env::args().collect::<Vec<String>>()[0];
+    let modo_debug = argumentos.is_present("Debug");
+    let cantidad_clientes = argumentos.value_of("Clientes").unwrap_or(CANTIDAD_DE_CLIENTES_DEFAULT).parse::<u32>().unwrap();
+    let cantidad_workers_ia = argumentos.value_of("Workers ia").unwrap_or(CANTIDAD_DE_IA_DEFAULT).parse::<u32>().unwrap();
+    let cantidad_workers_cashin = argumentos.value_of("Workers cashin").unwrap_or(CANTIDAD_DE_CASHIN_DEFAULT).parse::<u32>().unwrap();
+    let cantidad_workers_cashout = argumentos.value_of("Workers cashout").unwrap_or(CANTIDAD_DE_CASHOUT_DEFAULT).parse::<u32>().unwrap();
+
+    let mut rng = rand::thread_rng();
+    let semilla_simulaciones = argumentos
+        .value_of("Semilla simulacion")
+        .unwrap_or(&format!("{}", rng.gen::<u64>()))
+        .parse::<u64>()
+        .unwrap();
+    let semilla_ia = argumentos
+        .value_of("Semilla ia")
+        .unwrap_or(&format!("{}", rng.gen::<u64>()))
+        .parse::<u64>()
+        .unwrap();
+
     // Inicializo el logger
-    let logger = Arc::new(if argumentos.is_present("Debug") {
+    let logger = Arc::new(if modo_debug {
         Logger::new_to_file("debug.txt").expect("No se pudo crear el archivo de log.")
     } else {
         Logger::new_to_stdout()
     });
 
     let log = TaggedLogger::new("CONTROLADOR", logger.clone());
+    log.write(&format!("Iniciando simulación con: {} -o {} -i {} -p {} -c {} -s {} -a {}", exe, cantidad_workers_cashout, cantidad_workers_cashin, cantidad_workers_ia, cantidad_clientes, semilla_simulaciones, semilla_ia));
 
     log.write("Simulando transacciones");
-    let semilla = 64_u64; // TODO semilla aleatoria o por parametro
 
     let clientes = simular_transacciones(
         TaggedLogger::new("SIMULACION", logger.clone()),
         ARCHIVO_TRANSACCIONES,
-        argumentos.value_of("Clientes").unwrap_or(CANTIDAD_DE_CLIENTES_DEFAULT).parse::<u32>().unwrap(),
-        semilla
+        cantidad_clientes,
+        semilla_simulaciones
     ).expect("Error al generar el archivo de transacciones");
 
     log.write("Iniciando procesador del archivo");
@@ -77,16 +100,16 @@ fn real_main() -> Result<(), String> {
     let (tx_transacciones_validadas, rx_transacciones_validadas) = channel();
 
     let handles_procesadores_ia = iniciar_procesadores_ia(
-        3, // TODO usar valor de entrada de cantidad de procesadores ia
+        cantidad_workers_ia,
         rx_transacciones_autorizadas,
         tx_transacciones_validadas,
-        semilla + 1,
+        semilla_ia,
         logger.clone()
     );
 
     log.write("Iniciando workers cash in");
     let handles_worker_cash_in = iniciar_workers_de_tipo(
-        3, // TODO usar valor de entrada de cantidad de workers cash_in
+        cantidad_workers_cashin,
         TipoWorker::CashIn,
         Arc::new(Mutex::new(rx_cashin)),
         proveedor_autorizacion.clone(),
@@ -95,7 +118,7 @@ fn real_main() -> Result<(), String> {
     );
     log.write("Iniciando workers cash out");
     let handles_worker_cash_out = iniciar_workers_de_tipo(
-        3, // TODO usar valor de entrada de cantidad de workers cash_out
+        cantidad_workers_cashout,
         TipoWorker::CashOut,
         Arc::new(Mutex::new(rx_cashout)),
         proveedor_autorizacion,
