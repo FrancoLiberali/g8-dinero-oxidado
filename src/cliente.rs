@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn realizar_transferencia_pasa_saldo_de_un_cliente_a_otro_cuando_no_queda_por_procesar() {
-        let ruta_archivo_tests = "archivo.csv";
+        let ruta_archivo_tests = "archivo_tests_3.csv";
         let cliente1 = crear_cliente();
         let cliente2 = Arc::new(crear_cliente());
         let saldo1 = cliente1.get_saldo();
@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn realizar_transferencia_no_pasa_saldo_de_un_cliente_a_otro_si_queda_sin_procesar() {
-        let ruta_archivo_tests = "archivo_tests.csv";
+        let ruta_archivo_tests = "archivo_tests_4.csv";
         let cliente1 = crear_cliente_con_semilla(21_64);
         let cliente2 = Arc::new(crear_cliente());
         let saldo1 = cliente1.get_saldo();

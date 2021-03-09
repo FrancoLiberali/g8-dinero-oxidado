@@ -52,8 +52,8 @@ mod tests {
 
     #[test]
     fn procesador_envia_por_canal_cashin_cuando_lee_un_cashin() {
-        let id_transaccion = 1;
-        let ruta_archivo_tests = "archivo_tests.csv";
+        let id_transaccion = 2;
+        let ruta_archivo_tests = "archivo_tests_1.csv";
         let mut archivo = Writer::from_path(ruta_archivo_tests).unwrap();
         let transaccion = Transaccion {
             id: id_transaccion,
@@ -63,18 +63,20 @@ mod tests {
             monto: 123.33
         };
         archivo.serialize(transaccion).unwrap();
+        archivo.flush().unwrap();
 
         let (tx_cashin, rx_cashin) = channel();
         let (tx_cashout, _rx_cashout) = channel();
 
-        Procesador::iniciar(ruta_archivo_tests, tx_cashin, tx_cashout).unwrap();
-        assert_eq!(rx_cashin.recv().unwrap().id, id_transaccion)
+        let handle = Procesador::iniciar(ruta_archivo_tests, tx_cashin, tx_cashout).unwrap();
+        handle.join().unwrap();
+        assert_eq!(rx_cashin.recv().unwrap().id, id_transaccion);
     }
 
     #[test]
-    fn procesador_envia_por_canal_cashout_cuando_lee_un_cashin() {
+    fn procesador_envia_por_canal_cashout_cuando_lee_un_cashout() {
         let id_transaccion = 1;
-        let ruta_archivo_tests = "archivo_tests.csv";
+        let ruta_archivo_tests = "archivo_tests_2.csv";
         let mut archivo = Writer::from_path(ruta_archivo_tests).unwrap();
         archivo.serialize(Transaccion {
             id: id_transaccion,
@@ -83,11 +85,13 @@ mod tests {
             tipo: TipoTransaccion::CashOut,
             monto: 123.33
         }).unwrap();
+        archivo.flush().unwrap();
 
         let (tx_cashin, _rx_cashin) = channel();
         let (tx_cashout, rx_cashout) = channel();
 
-        Procesador::iniciar(ruta_archivo_tests, tx_cashin, tx_cashout).unwrap();
-        assert_eq!(rx_cashout.recv().unwrap().id, id_transaccion)
+        let handle = Procesador::iniciar(ruta_archivo_tests, tx_cashin, tx_cashout).unwrap();
+        handle.join().unwrap();
+        assert_eq!(rx_cashout.recv().unwrap().id, id_transaccion);
     }
 }
