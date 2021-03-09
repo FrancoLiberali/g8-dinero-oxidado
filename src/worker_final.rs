@@ -64,3 +64,70 @@ impl WorkerFinal {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Mutex, atomic::AtomicU32, mpsc::channel};
+
+    use super::*;
+    use csv::StringRecord;
+    use rand::{SeedableRng, prelude::StdRng};
+    use crate::{logger::Logger, transaccion::{Transaccion, TransaccionAutorizada, TipoTransaccion}};
+    use uuid::Uuid;
+
+    #[test]
+    fn realizar_transferencia_no_pasa_saldo_de_un_cliente_a_otro_si_queda_sin_procesar() {
+        let cliente = Arc::new(crear_cliente());
+
+        let (tx_transacciones_validadas, rx_transacciones_validadas) = channel();
+
+        let saldo_anterior = cliente.get_saldo();
+        let transaccion_id = 2;
+        let monto = 123.33;
+        let transaccion = Transaccion {
+            id: transaccion_id,
+            id_cliente: cliente.id,
+            timestamp: 112315846_128,
+            tipo: TipoTransaccion::CashIn,
+            monto
+        };
+        let hash = Uuid::new_v4();
+        let transaccion_autorizada = TransaccionAutorizada {
+            transaccion: transaccion,
+            autorizacion: hash
+        };
+
+        tx_transacciones_validadas.send(transaccion_autorizada).unwrap();
+        let handle = WorkerFinal::iniciar(crear_logger(),
+                   rx_transacciones_validadas,
+                   Arc::new(vec![cliente.clone()]));
+        drop(tx_transacciones_validadas);
+        handle.join().unwrap();
+
+        let mut reader = csv::Reader::from_path(ARCHIVO_SALDOS).unwrap();
+        let mut record = StringRecord::new();
+        reader.read_record(&mut record).unwrap();
+        assert_eq!(record[0], transaccion_id.to_string());
+        assert_eq!(record[1], cliente.id.to_hyphenated().to_string());
+        assert_eq!(record[3], *"cash_in");
+        assert_eq!(record[4], monto.to_string());
+        assert_eq!(record[5], hash.to_hyphenated().to_string());
+        assert_eq!(record[7], (saldo_anterior + monto).to_string());
+    }
+
+    fn crear_cliente() -> Cliente {
+        crear_cliente_con_semilla(2_64)
+    }
+
+    fn crear_cliente_con_semilla(semilla: u64) -> Cliente {
+        Cliente::new(
+            Uuid::new_v4(),
+               Arc::new(AtomicU32::new(1)),
+               Arc::new(Mutex::new(StdRng::seed_from_u64(semilla)))
+        )
+    }
+
+    fn crear_logger() -> TaggedLogger {
+        TaggedLogger::new("WORKER FINAL", Arc::new(Logger::new_to_stdout()))
+    }
+}
