@@ -123,3 +123,46 @@ impl Worker {
         self.tx_transacciones_autorizadas.send(transaccion_autorizada).expect("Channel cerrado");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc::channel;
+
+    use super::*;
+    use uuid::Uuid;
+    use crate::transaccion::TipoTransaccion;
+
+    #[test]
+    fn worker_solicitia_hash_y_envia_transaccion_autorizada() {
+        let id_transaccion = 2;
+        let transaccion = Transaccion {
+            id: id_transaccion,
+            id_cliente: Uuid::new_v4(),
+            timestamp: 112315846_128,
+            tipo: TipoTransaccion::CashIn,
+            monto: 123.33
+        };
+
+        let (tx_transacciones, rx_transacciones_) = channel();
+        let rx_transacciones = Arc::new(Mutex::new(rx_transacciones_));
+        let (tx_autorizacion, rx_autorizacion_) = channel();
+        let rx_autorizacion = Arc::new(Mutex::new(rx_autorizacion_));
+        let (tx_transacciones_autorizadas, rx_transacciones_autorizadas) = channel();
+
+        tx_transacciones.send(transaccion).unwrap();
+        let hash = Uuid::new_v4();
+        tx_autorizacion.send(hash).unwrap();
+
+        Worker::iniciar(crear_logger(),
+                   rx_transacciones,
+                   rx_autorizacion,
+                   tx_transacciones_autorizadas);
+        let recibida = rx_transacciones_autorizadas.recv().unwrap();
+        assert_eq!(recibida.transaccion.id, id_transaccion);
+        assert_eq!(recibida.autorizacion, hash);
+    }
+
+    fn crear_logger() -> TaggedLogger {
+        TaggedLogger::new("WORKER", Arc::new(Logger::new_to_stdout()))
+    }
+}
